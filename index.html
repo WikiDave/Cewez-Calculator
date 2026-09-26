@@ -196,6 +196,7 @@
       <summary>Bedrijven beheren</summary>
       <p class="hint">Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
       <ul class="list" id="coList"></ul>
+      <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
     </details>
   </section>
 
@@ -248,16 +249,36 @@
   ];
 
   const DEFAULT_COMPANIES = [
-    { id: 'sea-invest', name: 'SEA-Invest BNFW', logo: 'logos/sea-invest.png' },
-    { id: 'van-der-vlist', name: 'Van der Vlist', logo: 'logos/van-der-vlist.png' },
-    { id: 'verhelst', name: 'Verhelst Port Operator', logo: 'logos/verhelst.png' },
-    { id: 'zfl', name: 'Zeebrugge Food Logistics', logo: 'logos/zeebrugge-food-logistics.png' },
-  ];
+    ['sea-invest', 'SEA-Invest BNFW', 'SEA-Invest'],
+    ['van-der-vlist', 'Van der Vlist', 'Van der Vlist'],
+    ['verhelst', 'Verhelst Port Operator', 'Verhelst'],
+    ['zfl', 'Zeebrugge Food Logistics', 'ZFL', 'zeebrugge-food-logistics'],
+    ['intertrans', 'Intertrans', 'Intertrans'],
+    ['logghe', 'Logghe Brandstoffen', 'Logghe'],
+    ['minne', 'Minne Port Agencies', 'Minne'],
+    ['ndq', 'NDQ', 'NDQ'],
+    ['ossco', 'OSSCO', 'OSSCO'],
+    ['po-ferries', 'P&O Ferries', 'P&O Ferries'],
+    ['psa', 'PSA', 'PSA'],
+    ['sst', 'Sea Port Shipping & Trading', 'SST'],
+    ['seabridge', 'Seabridge Logistics', 'Seabridge'],
+    ['wwl', 'Wallenius Wilhelmsen Logistics Zeebrugge', 'WWL'],
+    ['ico', 'ICO International Car Operations', 'ICO'],
+    ['cldn', 'CLdN Ports C.RO', 'CLdN'],
+    ['borlix', 'Borlix', 'Borlix'],
+    ['cosco', 'CSP Cosco Shipping', 'Cosco'],
+    ['depre', 'Depre Storage Handling', 'Depre'],
+    ['dp-world', 'DP World', 'DP World'],
+    ['ecs', 'ECS 2XL', 'ECS 2XL'],
+    ['hoppe', 'Hoppe', 'Hoppe'],
+  ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
+  const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
 
   // --- opslag -------------------------------------------------------------
   const KEY_ENTRIES = 'haven-werkuren.entries';
   const KEY_RATES = 'haven-werkuren.rates';
-  const KEY_COMPANIES = 'haven-werkuren.companies';
+  const KEY_CUSTOM_CO = 'haven-werkuren.customCompanies';
+  const KEY_HIDDEN_CO = 'haven-werkuren.hiddenCompanies';
   const KEY_LAST_CO = 'haven-werkuren.lastCompany';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
@@ -268,7 +289,9 @@
 
   let entries = load(KEY_ENTRIES, []);
   let rates = load(KEY_RATES, null) || structuredClone(DEFAULT_RATES);
-  let companies = load(KEY_COMPANIES, null) || structuredClone(DEFAULT_COMPANIES);
+  let customCompanies = load(KEY_CUSTOM_CO, []);
+  let hiddenCompanies = load(KEY_HIDDEN_CO, []);
+  let showAllCompanies = false;
   let companyId = load(KEY_LAST_CO, '');
   const today = new Date();
   let viewYear = today.getFullYear();
@@ -333,7 +356,9 @@
   const holidayName = (iso) => holidays(Number(iso.slice(0, 4)))[iso];
 
   // --- bedrijven -----------------------------------------------------------
-  const companyById = (id) => companies.find((c) => c.id === id);
+  // ook verborgen bedrijven opzoeken, zodat oude dagen hun logo houden
+  const companyById = (id) => DEFAULT_COMPANIES.find((c) => c.id === id) || customCompanies.find((c) => c.id === id);
+  const visibleCompanies = () => [...DEFAULT_COMPANIES, ...customCompanies].filter((c) => !hiddenCompanies.includes(c.id));
   const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   // logo als <img>, of initialen als er geen logo is
@@ -345,14 +370,30 @@
   }
 
   function renderCompanyPicker() {
-    if (companyId && !companyById(companyId)) companyId = '';
-    $('cos').innerHTML = companies.map((c) => `<button type="button" class="co${c.id === companyId ? ' on' : ''}" data-co="${c.id}">
-        ${logoHtml(c.id)}<span>${escapeHtml(c.name)}</span></button>`).join('')
-      + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
-    $('coList').innerHTML = companies.length ? companies.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
+    if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
+    // meest gebruikte bedrijven eerst
+    const used = {};
+    for (const e of entries) if (e.company) used[e.company] = (used[e.company] || 0) + 1;
+    const all = visibleCompanies();
+    const sorted = all.map((c, i) => ({ c, i })).sort((a, b) => (used[b.c.id] || 0) - (used[a.c.id] || 0) || a.i - b.i).map((x) => x.c);
+    let shown = sorted;
+    if (!showAllCompanies && sorted.length > SHOW_COMPANIES + 1) {
+      shown = sorted.slice(0, SHOW_COMPANIES);
+      const sel = companyById(companyId);
+      if (sel && !shown.includes(sel)) shown[SHOW_COMPANIES - 1] = sel;
+    }
+    const toggle = shown.length < sorted.length
+      ? `<button type="button" class="co add" id="coMore"><span class="logo">⋯</span><span>Alle bedrijven (${sorted.length})</span></button>`
+      : sorted.length > SHOW_COMPANIES + 1 ? '<button type="button" class="co add" id="coMore"><span class="logo">−</span><span>Minder</span></button>' : '';
+    $('cos').innerHTML = shown.map((c) => `<button type="button" class="co${c.id === companyId ? ' on' : ''}" data-co="${c.id}" title="${escapeHtml(c.name)}">
+        ${logoHtml(c.id)}<span>${escapeHtml(c.short || c.name)}</span></button>`).join('')
+      + toggle + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
+
+    $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
         <div class="li-main"><div class="d">${escapeHtml(c.name)}</div></div>
         <button class="del" data-delco="${c.id}" aria-label="Verwijderen">✕</button></li>`).join('')
-      : '<li class="empty">Geen bedrijven.</li>';
+      : '<li class="empty">Geen bedrijven.</li>');
+    $('coRestore').hidden = !hiddenCompanies.length;
   }
 
   // foto verkleinen tot een rond logo van 96px (data-URL, zodat het in de browser bewaard kan worden)
@@ -376,6 +417,7 @@
     const btn = ev.target.closest('.co');
     if (!btn) return;
     if (btn.id === 'coAdd') { $('newco').hidden = false; $('coName').focus(); return; }
+    if (btn.id === 'coMore') { showAllCompanies = !showAllCompanies; renderCompanyPicker(); return; }
     companyId = btn.dataset.co === companyId ? '' : btn.dataset.co;
     save(KEY_LAST_CO, companyId);
     renderCompanyPicker();
@@ -390,8 +432,8 @@
       try { logo = await imageToLogo(file); } catch { return alert('Deze afbeelding kon niet gelezen worden.'); }
     }
     const co = { id: 'co-' + Date.now().toString(36), name, logo };
-    companies.push(co);
-    save(KEY_COMPANIES, companies);
+    customCompanies.push(co);
+    save(KEY_CUSTOM_CO, customCompanies);
     companyId = co.id; save(KEY_LAST_CO, companyId);
     $('coCancel').click();
     renderCompanyPicker();
@@ -399,8 +441,13 @@
   $('coList').addEventListener('click', (ev) => {
     const id = ev.target.closest('[data-delco]')?.dataset.delco;
     if (!id || !confirm(`${companyById(id).name} uit de lijst halen?`)) return;
-    companies = companies.filter((c) => c.id !== id);
-    save(KEY_COMPANIES, companies);
+    hiddenCompanies.push(id);
+    save(KEY_HIDDEN_CO, hiddenCompanies);
+    renderCompanyPicker();
+  });
+  $('coRestore').addEventListener('click', () => {
+    hiddenCompanies = [];
+    save(KEY_HIDDEN_CO, hiddenCompanies);
     renderCompanyPicker();
   });
 
@@ -447,6 +494,7 @@
     save(KEY_ENTRIES, entries);
     $('ot').value = ''; $('note').value = '';
     updatePreview();
+    renderCompanyPicker();
     render();
   }
 
@@ -605,7 +653,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   $('exportJson').addEventListener('click', () => {
-    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates, companies }, null, 2), 'application/json');
+    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates, customCompanies, hiddenCompanies }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -617,8 +665,10 @@
       if (!confirm(`${data.entries.length} dagen terugzetten? Dit vervangt wat nu op dit toestel staat.`)) return;
       entries = data.entries;
       if (Array.isArray(data.rates)) rates = data.rates;
-      if (Array.isArray(data.companies)) companies = data.companies;
-      save(KEY_ENTRIES, entries); save(KEY_RATES, rates); save(KEY_COMPANIES, companies);
+      if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
+      if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
+      save(KEY_ENTRIES, entries); save(KEY_RATES, rates);
+      save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
       renderCompanyPicker(); fillCodes(); renderRates(); render(); updatePreview();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
