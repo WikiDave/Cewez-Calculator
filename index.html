@@ -86,7 +86,7 @@
   .cal-head { margin: 14px 0 4px; }
   .cal-head span { text-align: center; font-size: 12px; color: var(--muted); }
   .cal button {
-    position: relative; aspect-ratio: 1 / 1.15; min-height: 48px; padding: 3px 2px;
+    position: relative; aspect-ratio: 1 / 1.3; min-height: 56px; padding: 3px 2px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     gap: 1px; cursor: pointer; overflow: hidden;
@@ -104,6 +104,27 @@
   .cal button .dot {
     position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ot);
   }
+  .cos { display: flex; flex-wrap: wrap; gap: 10px; }
+  .co {
+    display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px;
+    border: 0; background: transparent; padding: 0; cursor: pointer; font-size: 11px; color: var(--muted);
+    line-height: 1.15; text-align: center;
+  }
+  .co .logo { width: 48px; height: 48px; outline: 2px solid transparent; outline-offset: 2px; }
+  .co.on { color: var(--text); font-weight: 600; }
+  .co.on .logo { outline-color: var(--accent); }
+  .co.add .logo { border: 2px dashed var(--line); background: transparent; color: var(--muted); font-size: 24px; }
+  .logo {
+    width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 10px;
+  }
+  .li-logo { width: 36px; height: 36px; font-size: 13px; }
+  .cal button .logos { display: flex; justify-content: center; }
+  .cal button .logos > * + * { margin-left: -8px; }
+  .cal button .logo { width: 22px; height: 22px; font-size: 9px; box-shadow: 0 0 0 1.5px var(--card); }
+  .newco { margin-top: 10px; padding: 12px; border-radius: 10px; background: var(--bg); }
+  .newco .tools .btn { margin-top: 12px; }
   .monthsum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
   .monthsum b { font-size: 20px; color: var(--accent); font-variant-numeric: tabular-nums; }
 </style>
@@ -131,6 +152,19 @@
     <ul class="list" id="list"></ul>
     <input type="hidden" id="date">
 
+    <label>Bedrijf</label>
+    <div class="cos" id="cos"></div>
+    <div class="newco" id="newco" hidden>
+      <label for="coName">Naam nieuw bedrijf</label>
+      <input id="coName" placeholder="bv. PSA, MSC, …">
+      <label for="coLogo">Logo (foto of screenshot, optioneel)</label>
+      <input type="file" id="coLogo" accept="image/*">
+      <div class="tools">
+        <button class="btn ghost" id="coCancel" type="button">Annuleren</button>
+        <button class="btn" id="coSave" type="button">Bedrijf toevoegen</button>
+      </div>
+    </div>
+
     <label for="code">Start / shift</label>
     <select id="code"></select>
 
@@ -153,7 +187,17 @@
       <div class="stat"><div class="k">Overuren</div><div class="v ot" id="tOtH"></div></div>
       <div class="stat"><div class="k">Overuren bedrag</div><div class="v ot" id="tOt"></div></div>
     </div>
+    <ul class="list" id="perCo"></ul>
     <p class="hint" id="yearLine"></p>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Bedrijven beheren</summary>
+      <p class="hint">Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
+      <ul class="list" id="coList"></ul>
+      <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
+    </details>
   </section>
 
   <section class="card">
@@ -204,9 +248,38 @@
     { id: 'ZO', label: 'Zon- en feestdag', shift: 348.98, overuur: 72.21 },
   ];
 
+  const DEFAULT_COMPANIES = [
+    ['sea-invest', 'SEA-Invest BNFW', 'SEA-Invest'],
+    ['van-der-vlist', 'Van der Vlist', 'Van der Vlist'],
+    ['verhelst', 'Verhelst Port Operator', 'Verhelst'],
+    ['zfl', 'Zeebrugge Food Logistics', 'ZFL', 'zeebrugge-food-logistics'],
+    ['intertrans', 'Intertrans', 'Intertrans'],
+    ['logghe', 'Logghe Brandstoffen', 'Logghe'],
+    ['minne', 'Minne Port Agencies', 'Minne'],
+    ['ndq', 'NDQ', 'NDQ'],
+    ['ossco', 'OSSCO', 'OSSCO'],
+    ['po-ferries', 'P&O Ferries', 'P&O Ferries'],
+    ['psa', 'PSA', 'PSA'],
+    ['sst', 'Sea Port Shipping & Trading', 'SST'],
+    ['seabridge', 'Seabridge Logistics', 'Seabridge'],
+    ['wwl', 'Wallenius Wilhelmsen Logistics Zeebrugge', 'WWL'],
+    ['ico', 'ICO International Car Operations', 'ICO'],
+    ['cldn', 'CLdN Ports C.RO', 'CLdN'],
+    ['borlix', 'Borlix', 'Borlix'],
+    ['cosco', 'CSP Cosco Shipping', 'Cosco'],
+    ['depre', 'Depre Storage Handling', 'Depre'],
+    ['dp-world', 'DP World', 'DP World'],
+    ['ecs', 'ECS 2XL', 'ECS 2XL'],
+    ['hoppe', 'Hoppe', 'Hoppe'],
+  ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
+  const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
+
   // --- opslag -------------------------------------------------------------
   const KEY_ENTRIES = 'haven-werkuren.entries';
   const KEY_RATES = 'haven-werkuren.rates';
+  const KEY_CUSTOM_CO = 'haven-werkuren.customCompanies';
+  const KEY_HIDDEN_CO = 'haven-werkuren.hiddenCompanies';
+  const KEY_LAST_CO = 'haven-werkuren.lastCompany';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -216,6 +289,10 @@
 
   let entries = load(KEY_ENTRIES, []);
   let rates = load(KEY_RATES, null) || structuredClone(DEFAULT_RATES);
+  let customCompanies = load(KEY_CUSTOM_CO, []);
+  let hiddenCompanies = load(KEY_HIDDEN_CO, []);
+  let showAllCompanies = false;
+  let companyId = load(KEY_LAST_CO, '');
   const today = new Date();
   let viewYear = today.getFullYear();
   let viewMonth = today.getMonth();
@@ -278,6 +355,102 @@
   }
   const holidayName = (iso) => holidays(Number(iso.slice(0, 4)))[iso];
 
+  // --- bedrijven -----------------------------------------------------------
+  // ook verborgen bedrijven opzoeken, zodat oude dagen hun logo houden
+  const companyById = (id) => DEFAULT_COMPANIES.find((c) => c.id === id) || customCompanies.find((c) => c.id === id);
+  const visibleCompanies = () => [...DEFAULT_COMPANIES, ...customCompanies].filter((c) => !hiddenCompanies.includes(c.id));
+  const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+  // logo als <img>, of initialen als er geen logo is
+  function logoHtml(id, name, cls = '') {
+    const co = companyById(id);
+    const n = co?.name || name || '';
+    if (co?.logo) return `<img class="logo ${cls}" src="${co.logo}" alt="${escapeHtml(n)}">`;
+    return `<span class="logo ${cls}" title="${escapeHtml(n)}">${escapeHtml(initials(n))}</span>`;
+  }
+
+  function renderCompanyPicker() {
+    if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
+    // meest gebruikte bedrijven eerst
+    const used = {};
+    for (const e of entries) if (e.company) used[e.company] = (used[e.company] || 0) + 1;
+    const all = visibleCompanies();
+    const sorted = all.map((c, i) => ({ c, i })).sort((a, b) => (used[b.c.id] || 0) - (used[a.c.id] || 0) || a.i - b.i).map((x) => x.c);
+    let shown = sorted;
+    if (!showAllCompanies && sorted.length > SHOW_COMPANIES + 1) {
+      shown = sorted.slice(0, SHOW_COMPANIES);
+      const sel = companyById(companyId);
+      if (sel && !shown.includes(sel)) shown[SHOW_COMPANIES - 1] = sel;
+    }
+    const toggle = shown.length < sorted.length
+      ? `<button type="button" class="co add" id="coMore"><span class="logo">⋯</span><span>Alle bedrijven (${sorted.length})</span></button>`
+      : sorted.length > SHOW_COMPANIES + 1 ? '<button type="button" class="co add" id="coMore"><span class="logo">−</span><span>Minder</span></button>' : '';
+    $('cos').innerHTML = shown.map((c) => `<button type="button" class="co${c.id === companyId ? ' on' : ''}" data-co="${c.id}" title="${escapeHtml(c.name)}">
+        ${logoHtml(c.id)}<span>${escapeHtml(c.short || c.name)}</span></button>`).join('')
+      + toggle + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
+
+    $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
+        <div class="li-main"><div class="d">${escapeHtml(c.name)}</div></div>
+        <button class="del" data-delco="${c.id}" aria-label="Verwijderen">✕</button></li>`).join('')
+      : '<li class="empty">Geen bedrijven.</li>');
+    $('coRestore').hidden = !hiddenCompanies.length;
+  }
+
+  // foto verkleinen tot een rond logo van 96px (data-URL, zodat het in de browser bewaard kan worden)
+  function imageToLogo(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 96, side = Math.min(img.width, img.height);
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = size;
+        cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        URL.revokeObjectURL(img.src);
+        resolve(cv.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  $('cos').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.co');
+    if (!btn) return;
+    if (btn.id === 'coAdd') { $('newco').hidden = false; $('coName').focus(); return; }
+    if (btn.id === 'coMore') { showAllCompanies = !showAllCompanies; renderCompanyPicker(); return; }
+    companyId = btn.dataset.co === companyId ? '' : btn.dataset.co;
+    save(KEY_LAST_CO, companyId);
+    renderCompanyPicker();
+  });
+  $('coCancel').addEventListener('click', () => { $('newco').hidden = true; $('coName').value = ''; $('coLogo').value = ''; });
+  $('coSave').addEventListener('click', async () => {
+    const name = $('coName').value.trim();
+    if (!name) return alert('Geef het bedrijf een naam.');
+    let logo = '';
+    const file = $('coLogo').files[0];
+    if (file) {
+      try { logo = await imageToLogo(file); } catch { return alert('Deze afbeelding kon niet gelezen worden.'); }
+    }
+    const co = { id: 'co-' + Date.now().toString(36), name, logo };
+    customCompanies.push(co);
+    save(KEY_CUSTOM_CO, customCompanies);
+    companyId = co.id; save(KEY_LAST_CO, companyId);
+    $('coCancel').click();
+    renderCompanyPicker();
+  });
+  $('coList').addEventListener('click', (ev) => {
+    const id = ev.target.closest('[data-delco]')?.dataset.delco;
+    if (!id || !confirm(`${companyById(id).name} uit de lijst halen?`)) return;
+    hiddenCompanies.push(id);
+    save(KEY_HIDDEN_CO, hiddenCompanies);
+    renderCompanyPicker();
+  });
+  $('coRestore').addEventListener('click', () => {
+    hiddenCompanies = [];
+    save(KEY_HIDDEN_CO, hiddenCompanies);
+    renderCompanyPicker();
+  });
+
   // --- formulier ----------------------------------------------------------
   function fillCodes() {
     const cur = $('code').value;
@@ -299,6 +472,7 @@
     const rate = rateById($('code').value);
     return {
       date: $('date').value, code: rate.id, label: rate.label,
+      company: companyId, companyName: companyById(companyId)?.name || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
       rate: { shift: rate.shift, overuur: rate.overuur },
     };
@@ -320,6 +494,7 @@
     save(KEY_ENTRIES, entries);
     $('ot').value = ''; $('note').value = '';
     updatePreview();
+    renderCompanyPicker();
     render();
   }
 
@@ -373,7 +548,11 @@
       let inner = `<span class="n">${day}</span>`;
       if (list.length) {
         const t = totals(list);
-        inner += `<span class="c">${list.map(shortCode).join('+')}</span><span class="a">${Math.round(t.base + t.ot)}</span>`;
+        const withCo = list.filter((e) => e.company || e.companyName);
+        const mark = withCo.length
+          ? `<span class="logos">${withCo.map((e) => logoHtml(e.company, e.companyName)).join('')}</span>`
+          : `<span class="c">${list.map(shortCode).join('+')}</span>`;
+        inner += `${mark}<span class="a">${Math.round(t.base + t.ot)}</span>`;
         if (t.otH) inner += '<span class="dot" title="overuren"></span>';
       }
       html += `<button class="${cls}" data-date="${iso}">${inner}</button>`;
@@ -391,7 +570,9 @@
       const c = calc(e);
       const detail = `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
       const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
-      return `<li><div class="li-main"><div class="d">${escapeHtml(e.label)}</div>
+      const co = e.company || e.companyName;
+      return `<li>${co ? logoHtml(e.company, e.companyName, 'li-logo') : ''}
+        <div class="li-main"><div class="d">${co ? escapeHtml(e.companyName || companyById(e.company)?.name || '') + ' · ' : ''}${escapeHtml(e.label)}</div>
         <div class="m">${detail}${note}</div></div>
         <div class="li-amt">${money(c.base + c.ot)}</div>
         <button class="del" data-id="${e.id}" aria-label="Verwijderen">✕</button></li>`;
@@ -411,6 +592,25 @@
     $('tBase').textContent = money(t.base);
     $('tOtH').textContent = fmtHours(t.otH);
     $('tOt').textContent = money(t.ot);
+
+    const per = {};
+    for (const e of list) {
+      const key = e.company || e.companyName || '';
+      (per[key] ||= { e, list: [] }).list.push(e);
+    }
+    const groups = Object.values(per).sort((a, b) => b.list.length - a.list.length);
+    $('perCo').innerHTML = list.length && (groups.length > 1 || groups[0].e.company || groups[0].e.companyName)
+      ? groups.map(({ e, list: l }) => {
+          const gt = totals(l);
+          const has = e.company || e.companyName;
+          const name = has ? (companyById(e.company)?.name || e.companyName) : 'Geen bedrijf gekozen';
+          return `<li>${has ? logoHtml(e.company, e.companyName, 'li-logo') : '<span class="logo li-logo">?</span>'}
+            <div class="li-main"><div class="d">${escapeHtml(name)}</div>
+            <div class="m">${gt.shifts} shift${gt.shifts === 1 ? '' : 'en'}${gt.otH ? ` · ${fmtHours(gt.otH)} overuren` : ''}</div></div>
+            <div class="li-amt">${money(gt.base + gt.ot)}</div></li>`;
+        }).join('')
+      : '';
+    $('perCo').hidden = !$('perCo').innerHTML;
 
     renderCalendar();
     renderDay();
@@ -453,7 +653,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   $('exportJson').addEventListener('click', () => {
-    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates }, null, 2), 'application/json');
+    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates, customCompanies, hiddenCompanies }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -465,17 +665,20 @@
       if (!confirm(`${data.entries.length} dagen terugzetten? Dit vervangt wat nu op dit toestel staat.`)) return;
       entries = data.entries;
       if (Array.isArray(data.rates)) rates = data.rates;
+      if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
+      if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
       save(KEY_ENTRIES, entries); save(KEY_RATES, rates);
-      fillCodes(); renderRates(); render(); updatePreview();
+      save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
+      renderCompanyPicker(); fillCodes(); renderRates(); render(); updatePreview();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Shift', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
+    const rows = [['Datum', 'Bedrijf', 'Shift', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
       const c = calc(e);
-      rows.push([e.date, e.label, num(e.overtime),
+      rows.push([e.date, e.companyName || '', e.label, num(e.overtime),
         num(c.base), num(c.ot), num(c.base + c.ot), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -505,6 +708,7 @@
   $('prev').addEventListener('click', () => shiftMonth(-1));
   $('next').addEventListener('click', () => shiftMonth(1));
 
+  renderCompanyPicker();
   fillCodes();
   renderRates();
   selectDay(isoDate(today), false);
