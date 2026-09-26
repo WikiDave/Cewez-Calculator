@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d5e">
+<title>Haven Werkuren</title>
+<style>
+  :root {
+    --bg: #f3f5f8; --card: #ffffff; --text: #16202b; --muted: #637083;
+    --line: #dde3ea; --accent: #0f5c8c; --accent-soft: #e3eff7;
+    --ot: #b3541e; --danger: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419; --card: #1a2129; --text: #e7edf3; --muted: #93a1b1;
+      --line: #2c3642; --accent: #5fb0e6; --accent-soft: #1c3345;
+      --ot: #f0a36b; --danger: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  header { padding: 20px 0 8px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin: 12px 0;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, button { font: inherit; color: inherit; }
+  input, select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); min-height: 44px;
+  }
+  .btn {
+    width: 100%; margin-top: 14px; padding: 12px; min-height: 48px; border: 0; border-radius: 10px;
+    background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+  }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .preview {
+    margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  }
+  .preview b { font-size: 20px; }
+  .monthbar { display: flex; align-items: center; gap: 8px; }
+  .monthbar button {
+    width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); cursor: pointer; font-size: 18px;
+  }
+  .monthbar h2 { flex: 1; text-align: center; margin: 0; text-transform: capitalize; }
+  .totals { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+  .stat { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat.big { grid-column: 1 / -1; background: var(--accent-soft); }
+  .stat.big .v { font-size: 26px; color: var(--accent); }
+  .ot { color: var(--ot); }
+  ul.list { list-style: none; margin: 12px 0 0; padding: 0; }
+  ul.list li {
+    display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  .li-main { flex: 1; min-width: 0; }
+  .li-main .d { font-weight: 600; }
+  .li-main .m { font-size: 13px; color: var(--muted); }
+  .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .del {
+    border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
+    border-radius: 8px; cursor: pointer; font-size: 18px;
+  }
+  .empty { color: var(--muted); text-align: center; padding: 16px 0 4px; }
+  details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  table.rates { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+  table.rates th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px; }
+  table.rates td { padding: 3px 4px; }
+  table.rates input { min-height: 36px; padding: 6px 8px; text-align: right; }
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hint { font-size: 13px; color: var(--muted); }
+  .cal-head, .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-head { margin: 14px 0 4px; }
+  .cal-head span { text-align: center; font-size: 12px; color: var(--muted); }
+  .cal button {
+    position: relative; aspect-ratio: 1 / 1.15; min-height: 48px; padding: 3px 2px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 1px; cursor: pointer; overflow: hidden;
+  }
+  .cal button.pad { visibility: hidden; }
+  .cal button.we { background: transparent; }
+  .cal button .n { font-size: 13px; color: var(--muted); }
+  .cal button .c { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+  .cal button .a { font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .cal button.hol .n { color: var(--ot); font-weight: 700; }
+  .cal button.work { background: var(--accent-soft); border-color: transparent; }
+  .cal button.work .n { color: var(--text); }
+  .cal button.today .n { color: var(--accent); font-weight: 700; text-decoration: underline; }
+  .cal button.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .cal button .dot {
+    position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ot);
+  }
+  .monthsum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
+  .monthsum b { font-size: 20px; color: var(--accent); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Haven Werkuren</h1>
+    <p class="sub">Shiften en overuren bijhouden, per maand (bruto)</p>
+  </header>
+
+  <section class="card">
+    <div class="monthbar">
+      <button id="prev" aria-label="Vorige maand">‹</button>
+      <h2 id="monthTitle"></h2>
+      <button id="next" aria-label="Volgende maand">›</button>
+    </div>
+    <div class="cal-head"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
+    <div class="cal" id="cal"></div>
+    <div class="monthsum"><span>Totaal bruto</span><b id="tTotalTop"></b></div>
+  </section>
+
+  <section class="card" id="dayCard">
+    <h2 id="dayTitle"></h2>
+    <ul class="list" id="list"></ul>
+    <input type="hidden" id="date">
+
+    <label for="code">Start / shift</label>
+    <select id="code"></select>
+
+    <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
+    <input id="ot" inputmode="decimal" placeholder="0">
+
+    <label for="note">Notitie (optioneel)</label>
+    <input id="note" placeholder="bv. schip, kaai…">
+
+    <div class="preview"><span>Deze shift</span><b id="preview">€ 0,00</b></div>
+    <button class="btn" id="add">Opslaan</button>
+  </section>
+
+  <section class="card">
+    <h2 id="sumTitle"></h2>
+    <div class="totals">
+      <div class="stat big"><div class="k">Totaal bruto deze maand</div><div class="v" id="tTotal"></div></div>
+      <div class="stat"><div class="k">Shiften</div><div class="v" id="tShifts"></div></div>
+      <div class="stat"><div class="k">Basis</div><div class="v" id="tBase"></div></div>
+      <div class="stat"><div class="k">Overuren</div><div class="v ot" id="tOtH"></div></div>
+      <div class="stat"><div class="k">Overuren bedrag</div><div class="v ot" id="tOt"></div></div>
+    </div>
+    <p class="hint" id="yearLine"></p>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Tarieven aanpassen</summary>
+      <p class="hint">Als de lonen geïndexeerd worden, pas je ze hier aan. Dagen die je al opgeslagen hebt, houden het tarief van toen.</p>
+      <table class="rates">
+        <thead><tr><th>Start</th><th>Shift</th><th>Overuur</th></tr></thead>
+        <tbody id="ratesBody"></tbody>
+      </table>
+      <button class="btn ghost" id="resetRates">Standaardtarieven terugzetten</button>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Back-up &amp; export</summary>
+      <p class="hint">Je gegevens staan alleen op dit toestel, in deze browser. Maak af en toe een back-up.</p>
+      <div class="tools">
+        <button class="btn ghost" id="exportJson">Back-up downloaden</button>
+        <button class="btn ghost" id="importBtn">Back-up terugzetten</button>
+        <button class="btn ghost" id="exportCsv" style="grid-column:1/-1">Maand als CSV (Excel)</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </details>
+  </section>
+</main>
+
+<script>
+(() => {
+  const DEFAULT_RATES = [
+    { id: '04', label: '04u00 (I)', shift: 261.74, overuur: 54.15 },
+    { id: '05', label: '05u00 (J)', shift: 222.48, overuur: 46.04 },
+    { id: '06', label: '06u00 (H)', shift: 183.21, overuur: 37.91 },
+    { id: '07', label: '07u00 (B)', shift: 178.12, overuur: 36.86 },
+    { id: '08', label: '08u00 (A)', shift: 174.49, overuur: 36.11 },
+    { id: '09', label: '09u00 (C)', shift: 185.34, overuur: 38.34 },
+    { id: '10', label: '10u00 (D)', shift: 187.58, overuur: 38.81 },
+    { id: '11', label: '11u00 (E)', shift: 187.58, overuur: 38.81 },
+    { id: '12', label: '12u00 (F)', shift: 200.66, overuur: 41.52 },
+    { id: '13', label: '13u00 (G)', shift: 200.66, overuur: 41.52 },
+    { id: '14', label: '14u00 (N)', shift: 200.66, overuur: 41.52 },
+    { id: '15', label: '15u00 (O)', shift: 209.10, overuur: 43.26 },
+    { id: '16', label: '16u00 (P)', shift: 217.52, overuur: 45.00 },
+    { id: '17', label: '17u00 (Q)', shift: 225.94, overuur: 46.74 },
+    { id: '18', label: '18u–22u (V W X Y Z)', shift: 261.74, overuur: 54.15 },
+    { id: 'ZA', label: 'Zaterdag', shift: 261.74, overuur: 54.15 },
+    { id: 'ZO', label: 'Zon- en feestdag', shift: 348.98, overuur: 72.21 },
+  ];
+
+  // --- opslag -------------------------------------------------------------
+  const KEY_ENTRIES = 'haven-werkuren.entries';
+  const KEY_RATES = 'haven-werkuren.rates';
+  const load = (k, fallback) => {
+    try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
+  };
+  const save = (k, v) => {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch { alert('Opslaan mislukt: browseropslag niet beschikbaar.'); }
+  };
+
+  let entries = load(KEY_ENTRIES, []);
+  let rates = load(KEY_RATES, null) || structuredClone(DEFAULT_RATES);
+  const today = new Date();
+  let viewYear = today.getFullYear();
+  let viewMonth = today.getMonth();
+  let selected = '';
+
+  // --- helpers ------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  const eur = new Intl.NumberFormat('nl-BE', { style: 'currency', currency: 'EUR' });
+  const money = (n) => eur.format(n || 0);
+  const round2 = (n) => Math.round(Number((n * 100).toFixed(6))) / 100;
+  const pad = (n) => String(n).padStart(2, '0');
+  const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const rateById = (id) => rates.find((r) => r.id === id);
+
+  // "1u30", "1:30", "1,5", "1.5", "90m" -> uren als getal
+  function parseHours(str) {
+    const s = String(str || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (!s) return 0;
+    let m = s.match(/^(\d+)(?:u|h|:)(\d{1,2})?$/);
+    if (m) return Number(m[1]) + Number(m[2] || 0) / 60;
+    m = s.match(/^(\d+)m(in)?$/);
+    if (m) return Number(m[1]) / 60;
+    const n = Number(s.replace(',', '.'));
+    return Number.isFinite(n) && n >= 0 ? n : NaN;
+  }
+  const fmtHours = (h) => {
+    const mins = Math.round(h * 60);
+    return `${Math.floor(mins / 60)}u${pad(mins % 60)}`;
+  };
+
+  const calc = (e) => ({ base: e.rate.shift, ot: round2(e.overtime * e.rate.overuur) });
+
+  // --- Belgische feestdagen ------------------------------------------------
+  const holidayCache = {};
+  function holidays(year) {
+    if (holidayCache[year]) return holidayCache[year];
+    // Pasen (Gregoriaans, anonieme methode)
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = new Date(year, month - 1, day);
+    const plus = (n) => isoDate(new Date(year, easter.getMonth(), easter.getDate() + n));
+    return (holidayCache[year] = {
+      [`${year}-01-01`]: 'Nieuwjaar',
+      [plus(0)]: 'Pasen',
+      [plus(1)]: 'Paasmaandag',
+      [`${year}-05-01`]: 'Dag van de Arbeid',
+      [plus(39)]: 'O.L.H. Hemelvaart',
+      [plus(49)]: 'Pinksteren',
+      [plus(50)]: 'Pinkstermaandag',
+      [`${year}-07-21`]: 'Nationale feestdag',
+      [`${year}-08-15`]: 'O.L.V. Hemelvaart',
+      [`${year}-11-01`]: 'Allerheiligen',
+      [`${year}-11-11`]: 'Wapenstilstand',
+      [`${year}-12-25`]: 'Kerstmis',
+    });
+  }
+  const holidayName = (iso) => holidays(Number(iso.slice(0, 4)))[iso];
+
+  // --- formulier ----------------------------------------------------------
+  function fillCodes() {
+    const cur = $('code').value;
+    $('code').innerHTML = rates.map((r) => `<option value="${r.id}">${r.label}</option>`).join('');
+    if (cur && rateById(cur)) $('code').value = cur;
+  }
+
+  function autoPickDay() {
+    const d = new Date($('date').value + 'T12:00');
+    if (isNaN(d)) return;
+    const wd = d.getDay();
+    if (wd === 0 || holidayName($('date').value)) $('code').value = 'ZO';
+    else if (wd === 6) $('code').value = 'ZA';
+    else if ($('code').value === 'ZA' || $('code').value === 'ZO') $('code').value = '08';
+    updatePreview();
+  }
+
+  function readForm() {
+    const rate = rateById($('code').value);
+    return {
+      date: $('date').value, code: rate.id, label: rate.label,
+      overtime: parseHours($('ot').value), note: $('note').value.trim(),
+      rate: { shift: rate.shift, overuur: rate.overuur },
+    };
+  }
+
+  function updatePreview() {
+    const e = readForm();
+    if (Number.isNaN(e.overtime)) { $('preview').textContent = '—'; return; }
+    const c = calc(e);
+    $('preview').textContent = money(c.base + c.ot);
+  }
+
+  function addEntry() {
+    const e = readForm();
+    if (!e.date) return alert('Kies een datum.');
+    if (Number.isNaN(e.overtime)) return alert('Overuren niet herkend. Schrijf bv. 1u30 of 1,5.');
+    e.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    entries.push(e);
+    save(KEY_ENTRIES, entries);
+    $('ot').value = ''; $('note').value = '';
+    updatePreview();
+    render();
+  }
+
+  // --- overzicht ----------------------------------------------------------
+  const monthEntries = (y, m) => {
+    const prefix = `${y}-${pad(m + 1)}`;
+    return entries.filter((e) => e.date.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  function totals(list) {
+    return list.reduce((t, e) => {
+      const c = calc(e);
+      t.base += c.base; t.ot += c.ot;
+      t.otH += e.overtime;
+      t.shifts += 1;
+      return t;
+    }, { base: 0, ot: 0, otH: 0, shifts: 0 });
+  }
+
+  // korte aanduiding in de kalender: startuur, of Za / Zo
+  const shortCode = (e) => {
+    if (e.code === 'ZA') return 'Za';
+    if (e.code === 'ZO') return 'Zo';
+    if (e.code === '18') return '18u+';
+    return Number(e.code) + 'u';
+  };
+  const dayEntries = (iso) => entries.filter((e) => e.date === iso);
+
+  function selectDay(iso, scroll) {
+    selected = iso;
+    $('date').value = iso;
+    const d = new Date(iso + 'T12:00');
+    viewYear = d.getFullYear(); viewMonth = d.getMonth();
+    autoPickDay();
+    render();
+    if (scroll) $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderCalendar() {
+    const first = new Date(viewYear, viewMonth, 1);
+    const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const lead = (first.getDay() + 6) % 7; // maandag eerst
+    const todayIso = isoDate(today);
+    let html = '<button class="pad" tabindex="-1" aria-hidden="true"></button>'.repeat(lead);
+    for (let day = 1; day <= days; day++) {
+      const iso = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
+      const list = dayEntries(iso);
+      const wd = (lead + day - 1) % 7;
+      const cls = [wd >= 5 && 'we', holidayName(iso) && 'hol', list.length && 'work', iso === todayIso && 'today', iso === selected && 'sel']
+        .filter(Boolean).join(' ');
+      let inner = `<span class="n">${day}</span>`;
+      if (list.length) {
+        const t = totals(list);
+        inner += `<span class="c">${list.map(shortCode).join('+')}</span><span class="a">${Math.round(t.base + t.ot)}</span>`;
+        if (t.otH) inner += '<span class="dot" title="overuren"></span>';
+      }
+      html += `<button class="${cls}" data-date="${iso}">${inner}</button>`;
+    }
+    $('cal').innerHTML = html;
+  }
+
+  function renderDay() {
+    const d = new Date(selected + 'T12:00');
+    const hol = holidayName(selected);
+    $('dayTitle').textContent = d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })
+      + (hol ? ` · ${hol}` : '');
+    const list = dayEntries(selected);
+    $('list').innerHTML = list.map((e) => {
+      const c = calc(e);
+      const detail = `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
+      const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
+      return `<li><div class="li-main"><div class="d">${escapeHtml(e.label)}</div>
+        <div class="m">${detail}${note}</div></div>
+        <div class="li-amt">${money(c.base + c.ot)}</div>
+        <button class="del" data-id="${e.id}" aria-label="Verwijderen">✕</button></li>`;
+    }).join('');
+    $('list').hidden = !list.length;
+    $('add').textContent = list.length ? 'Nog een shift toevoegen' : 'Opslaan';
+  }
+
+  function render() {
+    const title = new Date(viewYear, viewMonth, 1).toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
+    $('monthTitle').textContent = title;
+    $('sumTitle').textContent = 'Overzicht ' + title;
+    const list = monthEntries(viewYear, viewMonth);
+    const t = totals(list);
+    $('tTotal').textContent = $('tTotalTop').textContent = money(t.base + t.ot);
+    $('tShifts').textContent = t.shifts;
+    $('tBase').textContent = money(t.base);
+    $('tOtH').textContent = fmtHours(t.otH);
+    $('tOt').textContent = money(t.ot);
+
+    renderCalendar();
+    renderDay();
+
+    const yt = totals(entries.filter((e) => e.date.startsWith(String(viewYear))));
+    $('yearLine').textContent = `Heel ${viewYear}: ${money(yt.base + yt.ot)} bruto, waarvan ${money(yt.ot)} overuren (${fmtHours(yt.otH)}).`;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // --- tarieven -----------------------------------------------------------
+  function renderRates() {
+    $('ratesBody').innerHTML = rates.map((r, i) => `<tr><td>${r.label}</td>
+      ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-i="${i}" data-k="${k}" value="${String(r[k].toFixed(2)).replace('.', ',')}"></td>`).join('')}
+    </tr>`).join('');
+  }
+  $('ratesBody').addEventListener('change', (ev) => {
+    const inp = ev.target;
+    const n = Number(inp.value.replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) { renderRates(); return; }
+    rates[inp.dataset.i][inp.dataset.k] = n;
+    save(KEY_RATES, rates);
+    updatePreview();
+  });
+  $('resetRates').addEventListener('click', () => {
+    if (!confirm('Alle tarieven terugzetten naar de standaardwaarden?')) return;
+    rates = structuredClone(DEFAULT_RATES);
+    save(KEY_RATES, rates);
+    renderRates(); fillCodes(); updatePreview();
+  });
+
+  // --- back-up ------------------------------------------------------------
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $('exportJson').addEventListener('click', () => {
+    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates }, null, 2), 'application/json');
+  });
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!Array.isArray(data.entries)) throw new Error();
+      if (!confirm(`${data.entries.length} dagen terugzetten? Dit vervangt wat nu op dit toestel staat.`)) return;
+      entries = data.entries;
+      if (Array.isArray(data.rates)) rates = data.rates;
+      save(KEY_ENTRIES, entries); save(KEY_RATES, rates);
+      fillCodes(); renderRates(); render(); updatePreview();
+    } catch { alert('Dit is geen geldig back-upbestand.'); }
+    ev.target.value = '';
+  });
+  $('exportCsv').addEventListener('click', () => {
+    const rows = [['Datum', 'Shift', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
+    const num = (n) => String(round2(n)).replace('.', ',');
+    for (const e of monthEntries(viewYear, viewMonth)) {
+      const c = calc(e);
+      rows.push([e.date, e.label, num(e.overtime),
+        num(c.base), num(c.ot), num(c.base + c.ot), e.note]);
+    }
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    download(`werkuren-${viewYear}-${pad(viewMonth + 1)}.csv`, '﻿' + csv, 'text/csv');
+  });
+
+  // --- events -------------------------------------------------------------
+  $('list').addEventListener('click', (ev) => {
+    const id = ev.target.closest('.del')?.dataset.id;
+    if (!id || !confirm('Deze dag verwijderen?')) return;
+    entries = entries.filter((e) => e.id !== id);
+    save(KEY_ENTRIES, entries);
+    render();
+  });
+  $('cal').addEventListener('click', (ev) => {
+    const iso = ev.target.closest('button[data-date]')?.dataset.date;
+    if (iso) selectDay(iso, true);
+  });
+  ['code', 'ot'].forEach((id) => $(id).addEventListener('input', updatePreview));
+  $('add').addEventListener('click', addEntry);
+  // bij maandwissel: zelfde dagnummer selecteren (of laatste dag van de maand)
+  const shiftMonth = (delta) => {
+    const day = Number(selected.slice(8));
+    const last = new Date(viewYear, viewMonth + delta + 1, 0);
+    selectDay(isoDate(new Date(last.getFullYear(), last.getMonth(), Math.min(day, last.getDate()))), false);
+  };
+  $('prev').addEventListener('click', () => shiftMonth(-1));
+  $('next').addEventListener('click', () => shiftMonth(1));
+
+  fillCodes();
+  renderRates();
+  selectDay(isoDate(today), false);
+})();
+</script>
+</body>
+</html>
