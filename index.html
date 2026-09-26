@@ -88,6 +88,29 @@
   table.rates input { min-height: 36px; padding: 6px 8px; text-align: right; }
   .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .hint { font-size: 13px; color: var(--muted); }
+  .cal-head, .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-head { margin: 14px 0 4px; }
+  .cal-head span { text-align: center; font-size: 12px; color: var(--muted); }
+  .cal button {
+    position: relative; aspect-ratio: 1 / 1.15; min-height: 48px; padding: 3px 2px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 1px; cursor: pointer; overflow: hidden;
+  }
+  .cal button.pad { visibility: hidden; }
+  .cal button.we { background: transparent; }
+  .cal button .n { font-size: 13px; color: var(--muted); }
+  .cal button .c { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+  .cal button .a { font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .cal button.work { background: var(--accent-soft); border-color: transparent; }
+  .cal button.work .n { color: var(--text); }
+  .cal button.today .n { color: var(--accent); font-weight: 700; text-decoration: underline; }
+  .cal button.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .cal button .dot {
+    position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ot);
+  }
+  .monthsum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
+  .monthsum b { font-size: 20px; color: var(--accent); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -98,17 +121,23 @@
   </header>
 
   <section class="card">
-    <h2>Dag toevoegen</h2>
-    <div class="row">
-      <div>
-        <label for="date">Datum</label>
-        <input type="date" id="date">
-      </div>
-      <div>
-        <label for="code">Start / shift</label>
-        <select id="code"></select>
-      </div>
+    <div class="monthbar">
+      <button id="prev" aria-label="Vorige maand">‹</button>
+      <h2 id="monthTitle"></h2>
+      <button id="next" aria-label="Volgende maand">›</button>
     </div>
+    <div class="cal-head"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
+    <div class="cal" id="cal"></div>
+    <div class="monthsum"><span>Totaal bruto</span><b id="tTotalTop"></b></div>
+  </section>
+
+  <section class="card" id="dayCard">
+    <h2 id="dayTitle"></h2>
+    <ul class="list" id="list"></ul>
+    <input type="hidden" id="date">
+
+    <label for="code">Start / shift</label>
+    <select id="code"></select>
 
     <label>Soort</label>
     <div class="seg" id="mode">
@@ -128,16 +157,12 @@
     <label for="note">Notitie (optioneel)</label>
     <input id="note" placeholder="bv. schip, kaai…">
 
-    <div class="preview"><span>Deze dag</span><b id="preview">€ 0,00</b></div>
+    <div class="preview"><span>Deze shift</span><b id="preview">€ 0,00</b></div>
     <button class="btn" id="add">Opslaan</button>
   </section>
 
   <section class="card">
-    <div class="monthbar">
-      <button id="prev" aria-label="Vorige maand">‹</button>
-      <h2 id="monthTitle"></h2>
-      <button id="next" aria-label="Volgende maand">›</button>
-    </div>
+    <h2 id="sumTitle"></h2>
     <div class="totals">
       <div class="stat big"><div class="k">Totaal bruto deze maand</div><div class="v" id="tTotal"></div></div>
       <div class="stat"><div class="k">Shiften</div><div class="v" id="tShifts"></div></div>
@@ -145,7 +170,6 @@
       <div class="stat"><div class="k">Overuren</div><div class="v ot" id="tOtH"></div></div>
       <div class="stat"><div class="k">Overuren bedrag</div><div class="v ot" id="tOt"></div></div>
     </div>
-    <ul class="list" id="list"></ul>
     <p class="hint" id="yearLine"></p>
   </section>
 
@@ -215,6 +239,7 @@
   const today = new Date();
   let viewYear = today.getFullYear();
   let viewMonth = today.getMonth();
+  let selected = '';
 
   // --- helpers ------------------------------------------------------------
   const $ = (id) => document.getElementById(id);
@@ -298,8 +323,6 @@
     entries.push(e);
     save(KEY_ENTRIES, entries);
     $('ot').value = ''; $('hours').value = ''; $('note').value = '';
-    const d = new Date(e.date + 'T12:00');
-    viewYear = d.getFullYear(); viewMonth = d.getMonth();
     updatePreview();
     render();
   }
@@ -321,29 +344,81 @@
     }, { base: 0, ot: 0, otH: 0, shifts: 0, hours: 0 });
   }
 
+  // korte aanduiding in de kalender: startuur, of Za / Zo
+  const shortCode = (e) => {
+    if (e.code === 'ZA') return 'Za';
+    if (e.code === 'ZO') return 'Zo';
+    if (e.code === '18') return '18u+';
+    return Number(e.code) + 'u';
+  };
+  const dayEntries = (iso) => entries.filter((e) => e.date === iso);
+
+  function selectDay(iso, scroll) {
+    selected = iso;
+    $('date').value = iso;
+    const d = new Date(iso + 'T12:00');
+    viewYear = d.getFullYear(); viewMonth = d.getMonth();
+    autoPickDay();
+    render();
+    if (scroll) $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderCalendar() {
+    const first = new Date(viewYear, viewMonth, 1);
+    const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const lead = (first.getDay() + 6) % 7; // maandag eerst
+    const todayIso = isoDate(today);
+    let html = '<button class="pad" tabindex="-1" aria-hidden="true"></button>'.repeat(lead);
+    for (let day = 1; day <= days; day++) {
+      const iso = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
+      const list = dayEntries(iso);
+      const wd = (lead + day - 1) % 7;
+      const cls = [wd >= 5 && 'we', list.length && 'work', iso === todayIso && 'today', iso === selected && 'sel']
+        .filter(Boolean).join(' ');
+      let inner = `<span class="n">${day}</span>`;
+      if (list.length) {
+        const t = totals(list);
+        inner += `<span class="c">${list.map(shortCode).join('+')}</span><span class="a">${Math.round(t.base + t.ot)}</span>`;
+        if (t.otH) inner += '<span class="dot" title="overuren"></span>';
+      }
+      html += `<button class="${cls}" data-date="${iso}">${inner}</button>`;
+    }
+    $('cal').innerHTML = html;
+  }
+
+  function renderDay() {
+    const d = new Date(selected + 'T12:00');
+    $('dayTitle').textContent = d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const list = dayEntries(selected);
+    $('list').innerHTML = list.map((e) => {
+      const c = calc(e);
+      const detail = e.mode === 'uren'
+        ? `${fmtHours(e.hours)} × ${money(e.rate.uur)}`
+        : `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
+      const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
+      return `<li><div class="li-main"><div class="d">${escapeHtml(e.label)}</div>
+        <div class="m">${detail}${note}</div></div>
+        <div class="li-amt">${money(c.base + c.ot)}</div>
+        <button class="del" data-id="${e.id}" aria-label="Verwijderen">✕</button></li>`;
+    }).join('');
+    $('list').hidden = !list.length;
+    $('add').textContent = list.length ? 'Nog een shift toevoegen' : 'Opslaan';
+  }
+
   function render() {
     const title = new Date(viewYear, viewMonth, 1).toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
     $('monthTitle').textContent = title;
+    $('sumTitle').textContent = 'Overzicht ' + title;
     const list = monthEntries(viewYear, viewMonth);
     const t = totals(list);
-    $('tTotal').textContent = money(t.base + t.ot);
+    $('tTotal').textContent = $('tTotalTop').textContent = money(t.base + t.ot);
     $('tShifts').textContent = t.shifts + (list.length > t.shifts ? ` (+${list.length - t.shifts} uur)` : '');
     $('tBase').textContent = money(t.base);
     $('tOtH').textContent = fmtHours(t.otH);
     $('tOt').textContent = money(t.ot);
 
-    $('list').innerHTML = list.length ? list.map((e) => {
-      const c = calc(e);
-      const d = new Date(e.date + 'T12:00').toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });
-      const detail = e.mode === 'uren'
-        ? `${fmtHours(e.hours)} × ${money(e.rate.uur)}`
-        : `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
-      const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
-      return `<li><div class="li-main"><div class="d">${d} · ${escapeHtml(e.label)}</div>
-        <div class="m">${detail}${note}</div></div>
-        <div class="li-amt">${money(c.base + c.ot)}</div>
-        <button class="del" data-id="${e.id}" aria-label="Verwijderen">✕</button></li>`;
-    }).join('') : '<li class="empty">Nog geen dagen in deze maand.</li>';
+    renderCalendar();
+    renderDay();
 
     const yt = totals(entries.filter((e) => e.date.startsWith(String(viewYear))));
     $('yearLine').textContent = `Heel ${viewYear}: ${money(yt.base + yt.ot)} bruto, waarvan ${money(yt.ot)} overuren (${fmtHours(yt.otH)}).`;
@@ -421,17 +496,24 @@
     render();
   });
   document.querySelectorAll('#mode button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
-  $('date').addEventListener('change', autoPickDay);
+  $('cal').addEventListener('click', (ev) => {
+    const iso = ev.target.closest('button[data-date]')?.dataset.date;
+    if (iso) selectDay(iso, true);
+  });
   ['code', 'ot', 'hours'].forEach((id) => $(id).addEventListener('input', updatePreview));
   $('add').addEventListener('click', addEntry);
-  $('prev').addEventListener('click', () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } render(); });
-  $('next').addEventListener('click', () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } render(); });
+  // bij maandwissel: zelfde dagnummer selecteren (of laatste dag van de maand)
+  const shiftMonth = (delta) => {
+    const day = Number(selected.slice(8));
+    const last = new Date(viewYear, viewMonth + delta + 1, 0);
+    selectDay(isoDate(new Date(last.getFullYear(), last.getMonth(), Math.min(day, last.getDate()))), false);
+  };
+  $('prev').addEventListener('click', () => shiftMonth(-1));
+  $('next').addEventListener('click', () => shiftMonth(1));
 
   fillCodes();
   renderRates();
-  $('date').value = isoDate(today);
-  autoPickDay();
-  render();
+  selectDay(isoDate(today), false);
 })();
 </script>
 </body>
