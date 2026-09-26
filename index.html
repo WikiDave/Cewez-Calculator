@@ -76,6 +76,12 @@
   }
   .empty { color: var(--muted); text-align: center; padding: 16px 0 4px; }
   details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  .ptabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .ptabs button {
+    border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px;
+    min-height: 40px; cursor: pointer;
+  }
+  .ptabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   table.rates { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
   table.rates th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px; }
   table.rates td { padding: 3px 4px; }
@@ -202,13 +208,22 @@
 
   <section class="card">
     <details>
-      <summary>Tarieven aanpassen</summary>
-      <p class="hint">Als de lonen geïndexeerd worden, pas je ze hier aan. Dagen die je al opgeslagen hebt, houden het tarief van toen.</p>
+      <summary>Tarieven</summary>
+      <p class="hint">Elke dag wordt berekend met de tarieven die op die datum golden. Pas je een datum of bedrag aan, dan worden alle dagen opnieuw berekend.</p>
+      <div class="ptabs" id="periodTabs"></div>
+      <div id="periodFromWrap">
+        <label for="periodFrom">Geldig vanaf</label>
+        <input type="date" id="periodFrom">
+      </div>
       <table class="rates">
         <thead><tr><th>Start</th><th>Shift</th><th>Overuur</th></tr></thead>
         <tbody id="ratesBody"></tbody>
       </table>
-      <button class="btn ghost" id="resetRates">Standaardtarieven terugzetten</button>
+      <div class="tools">
+        <button class="btn ghost" id="addPeriod">Nieuwe tarieven toevoegen</button>
+        <button class="btn ghost" id="delPeriod">Deze tarieven verwijderen</button>
+        <button class="btn ghost" id="resetRates" style="grid-column:1/-1">Standaardtarieven terugzetten</button>
+      </div>
     </details>
   </section>
 
@@ -228,24 +243,30 @@
 
 <script>
 (() => {
-  const DEFAULT_RATES = [
-    { id: '04', label: '04u00 (I)', shift: 261.74, overuur: 54.15 },
-    { id: '05', label: '05u00 (J)', shift: 222.48, overuur: 46.04 },
-    { id: '06', label: '06u00 (H)', shift: 183.21, overuur: 37.91 },
-    { id: '07', label: '07u00 (B)', shift: 178.12, overuur: 36.86 },
-    { id: '08', label: '08u00 (A)', shift: 174.49, overuur: 36.11 },
-    { id: '09', label: '09u00 (C)', shift: 185.34, overuur: 38.34 },
-    { id: '10', label: '10u00 (D)', shift: 187.58, overuur: 38.81 },
-    { id: '11', label: '11u00 (E)', shift: 187.58, overuur: 38.81 },
-    { id: '12', label: '12u00 (F)', shift: 200.66, overuur: 41.52 },
-    { id: '13', label: '13u00 (G)', shift: 200.66, overuur: 41.52 },
-    { id: '14', label: '14u00 (N)', shift: 200.66, overuur: 41.52 },
-    { id: '15', label: '15u00 (O)', shift: 209.10, overuur: 43.26 },
-    { id: '16', label: '16u00 (P)', shift: 217.52, overuur: 45.00 },
-    { id: '17', label: '17u00 (Q)', shift: 225.94, overuur: 46.74 },
-    { id: '18', label: '18u–22u (V W X Y Z)', shift: 261.74, overuur: 54.15 },
-    { id: 'ZA', label: 'Zaterdag', shift: 261.74, overuur: 54.15 },
-    { id: 'ZO', label: 'Zon- en feestdag', shift: 348.98, overuur: 72.21 },
+  const SHIFTS = [
+    ['04', '04u00 (I)'], ['05', '05u00 (J)'], ['06', '06u00 (H)'], ['07', '07u00 (B)'], ['08', '08u00 (A)'],
+    ['09', '09u00 (C)'], ['10', '10u00 (D)'], ['11', '11u00 (E)'], ['12', '12u00 (F)'], ['13', '13u00 (G)'],
+    ['14', '14u00 (N)'], ['15', '15u00 (O)'], ['16', '16u00 (P)'], ['17', '17u00 (Q)'],
+    ['18', '18u–22u (V W X Y Z)'], ['ZA', 'Zaterdag'], ['ZO', 'Zon- en feestdag'],
+  ].map(([id, label]) => ({ id, label }));
+  const shiftLabel = (id) => SHIFTS.find((x) => x.id === id)?.label || id;
+
+  // tarieven per periode: [shift, overuur] in dezelfde volgorde als SHIFTS
+  const ratesFrom = (pairs) => Object.fromEntries(SHIFTS.map((x, i) => [x.id, { shift: pairs[i][0], overuur: pairs[i][1] }]));
+  const DEFAULT_PERIODS = [
+    { from: '', values: ratesFrom([
+      [261.74, 54.15], [222.48, 46.04], [183.21, 37.91], [178.12, 36.86], [174.49, 36.11],
+      [185.34, 38.34], [187.58, 38.81], [187.58, 38.81], [200.66, 41.52], [200.66, 41.52],
+      [200.66, 41.52], [209.10, 43.26], [217.52, 45.00], [225.94, 46.74],
+      [261.74, 54.15], [261.74, 54.15], [348.98, 72.21],
+    ]) },
+    // indexering: juiste ingangsdatum nog niet gekend, voorlopig 1 oktober 2026
+    { from: '2026-10-01', values: ratesFrom([
+      [270.18, 55.91], [229.66, 47.52], [189.13, 39.14], [183.82, 38.03], [180.12, 37.26],
+      [191.28, 39.57], [193.63, 40.07], [193.63, 40.07], [207.14, 42.86], [207.14, 42.86],
+      [207.14, 42.86], [215.83, 44.66], [224.53, 46.46], [233.23, 48.26],
+      [270.18, 55.91], [270.18, 55.91], [360.24, 74.54],
+    ]) },
   ];
 
   const DEFAULT_COMPANIES = [
@@ -276,7 +297,7 @@
 
   // --- opslag -------------------------------------------------------------
   const KEY_ENTRIES = 'haven-werkuren.entries';
-  const KEY_RATES = 'haven-werkuren.rates';
+  const KEY_PERIODS = 'haven-werkuren.ratePeriods';
   const KEY_CUSTOM_CO = 'haven-werkuren.customCompanies';
   const KEY_HIDDEN_CO = 'haven-werkuren.hiddenCompanies';
   const KEY_LAST_CO = 'haven-werkuren.lastCompany';
@@ -288,7 +309,8 @@
   };
 
   let entries = load(KEY_ENTRIES, []);
-  let rates = load(KEY_RATES, null) || structuredClone(DEFAULT_RATES);
+  let periods = load(KEY_PERIODS, null) || structuredClone(DEFAULT_PERIODS);
+  let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
   let showAllCompanies = false;
@@ -305,7 +327,9 @@
   const round2 = (n) => Math.round(Number((n * 100).toFixed(6))) / 100;
   const pad = (n) => String(n).padStart(2, '0');
   const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const rateById = (id) => rates.find((r) => r.id === id);
+  // periodes staan gesorteerd op datum; de eerste heeft geen begindatum
+  const periodFor = (date) => periods.filter((pr) => pr.from <= date).pop() || periods[0];
+  const rateFor = (date, code) => periodFor(date).values[code];
 
   // "1u30", "1:30", "1,5", "1.5", "90m" -> uren als getal
   function parseHours(str) {
@@ -323,7 +347,10 @@
     return `${Math.floor(mins / 60)}u${pad(mins % 60)}`;
   };
 
-  const calc = (e) => ({ base: e.rate.shift, ot: round2(e.overtime * e.rate.overuur) });
+  const calc = (e) => {
+    const r = rateFor(e.date, e.code);
+    return { base: r.shift, ot: round2(e.overtime * r.overuur) };
+  };
 
   // --- Belgische feestdagen ------------------------------------------------
   const holidayCache = {};
@@ -454,8 +481,8 @@
   // --- formulier ----------------------------------------------------------
   function fillCodes() {
     const cur = $('code').value;
-    $('code').innerHTML = rates.map((r) => `<option value="${r.id}">${r.label}</option>`).join('');
-    if (cur && rateById(cur)) $('code').value = cur;
+    $('code').innerHTML = SHIFTS.map((r) => `<option value="${r.id}">${r.label}</option>`).join('');
+    if (cur) $('code').value = cur;
   }
 
   function autoPickDay() {
@@ -469,12 +496,11 @@
   }
 
   function readForm() {
-    const rate = rateById($('code').value);
+    const code = $('code').value;
     return {
-      date: $('date').value, code: rate.id, label: rate.label,
+      date: $('date').value, code, label: shiftLabel(code),
       company: companyId, companyName: companyById(companyId)?.name || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
-      rate: { shift: rate.shift, overuur: rate.overuur },
     };
   }
 
@@ -568,7 +594,7 @@
     const list = dayEntries(selected);
     $('list').innerHTML = list.map((e) => {
       const c = calc(e);
-      const detail = `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
+      const detail = `shift ${money(c.base)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
       const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
       const co = e.company || e.companyName;
       return `<li>${co ? logoHtml(e.company, e.companyName, 'li-logo') : ''}
@@ -624,24 +650,72 @@
   }
 
   // --- tarieven -----------------------------------------------------------
+  const fmtDate = (iso) => new Date(iso + 'T12:00').toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dayBefore = (iso) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() - 1); return isoDate(d); };
+  const periodName = (i) => i === 0
+    ? (periods.length > 1 ? `Tot ${fmtDate(dayBefore(periods[1].from))}` : 'Huidige tarieven')
+    : `Vanaf ${fmtDate(periods[i].from)}`;
+
+  function savePeriods() {
+    save(KEY_PERIODS, periods);
+    renderRates(); render(); updatePreview();
+  }
+
   function renderRates() {
-    $('ratesBody').innerHTML = rates.map((r, i) => `<tr><td>${r.label}</td>
-      ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-i="${i}" data-k="${k}" value="${String(r[k].toFixed(2)).replace('.', ',')}"></td>`).join('')}
+    editPeriod = Math.min(editPeriod, periods.length - 1);
+    const pr = periods[editPeriod];
+    $('periodTabs').innerHTML = periods.map((_, i) =>
+      `<button type="button" data-p="${i}" class="${i === editPeriod ? 'on' : ''}">${periodName(i)}</button>`).join('');
+    $('periodFromWrap').hidden = editPeriod === 0;
+    $('periodFrom').value = pr.from;
+    $('delPeriod').hidden = editPeriod === 0;
+    $('ratesBody').innerHTML = SHIFTS.map((x) => `<tr><td>${x.label}</td>
+      ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-id="${x.id}" data-k="${k}" value="${pr.values[x.id][k].toFixed(2).replace('.', ',')}"></td>`).join('')}
     </tr>`).join('');
   }
+  $('periodTabs').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-p]');
+    if (b) { editPeriod = Number(b.dataset.p); renderRates(); }
+  });
   $('ratesBody').addEventListener('change', (ev) => {
     const inp = ev.target;
     const n = Number(inp.value.replace(',', '.'));
     if (!Number.isFinite(n) || n < 0) { renderRates(); return; }
-    rates[inp.dataset.i][inp.dataset.k] = n;
-    save(KEY_RATES, rates);
-    updatePreview();
+    periods[editPeriod].values[inp.dataset.id][inp.dataset.k] = n;
+    savePeriods();
+  });
+  $('periodFrom').addEventListener('change', () => {
+    const v = $('periodFrom').value;
+    if (!v || periods.some((pr, i) => i !== editPeriod && pr.from === v)) {
+      alert('Kies een datum die nog niet gebruikt wordt.');
+      renderRates(); return;
+    }
+    const pr = periods[editPeriod];
+    pr.from = v;
+    periods.sort((a, b) => a.from.localeCompare(b.from));
+    editPeriod = periods.indexOf(pr);
+    savePeriods();
+  });
+  $('addPeriod').addEventListener('click', () => {
+    // standaard: eerste dag van volgende maand, met de laatste tarieven als vertrekpunt
+    const last = periods[periods.length - 1];
+    let d = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    while (periods.some((pr) => pr.from >= isoDate(d))) d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    periods.push({ from: isoDate(d), values: structuredClone(last.values) });
+    editPeriod = periods.length - 1;
+    savePeriods();
+  });
+  $('delPeriod').addEventListener('click', () => {
+    if (editPeriod === 0 || !confirm(`Tarieven "${periodName(editPeriod)}" verwijderen?`)) return;
+    periods.splice(editPeriod, 1);
+    editPeriod = periods.length - 1;
+    savePeriods();
   });
   $('resetRates').addEventListener('click', () => {
     if (!confirm('Alle tarieven terugzetten naar de standaardwaarden?')) return;
-    rates = structuredClone(DEFAULT_RATES);
-    save(KEY_RATES, rates);
-    renderRates(); fillCodes(); updatePreview();
+    periods = structuredClone(DEFAULT_PERIODS);
+    editPeriod = periods.length - 1;
+    savePeriods();
   });
 
   // --- back-up ------------------------------------------------------------
@@ -653,7 +727,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   $('exportJson').addEventListener('click', () => {
-    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, rates, customCompanies, hiddenCompanies }, null, 2), 'application/json');
+    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, periods, customCompanies, hiddenCompanies }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -664,10 +738,10 @@
       if (!Array.isArray(data.entries)) throw new Error();
       if (!confirm(`${data.entries.length} dagen terugzetten? Dit vervangt wat nu op dit toestel staat.`)) return;
       entries = data.entries;
-      if (Array.isArray(data.rates)) rates = data.rates;
+      if (Array.isArray(data.periods) && data.periods.length) periods = data.periods;
       if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
-      save(KEY_ENTRIES, entries); save(KEY_RATES, rates);
+      save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
       renderCompanyPicker(); fillCodes(); renderRates(); render(); updatePreview();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
