@@ -39,12 +39,6 @@
     width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); min-height: 44px;
   }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .seg button {
-    flex: 1; border: 0; background: transparent; padding: 10px; min-height: 44px; cursor: pointer;
-  }
-  .seg button.on { background: var(--accent); color: #fff; }
   .btn {
     width: 100%; margin-top: 14px; padding: 12px; min-height: 48px; border: 0; border-radius: 10px;
     background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
@@ -102,6 +96,7 @@
   .cal button .n { font-size: 13px; color: var(--muted); }
   .cal button .c { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.1; }
   .cal button .a { font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .cal button.hol .n { color: var(--ot); font-weight: 700; }
   .cal button.work { background: var(--accent-soft); border-color: transparent; }
   .cal button.work .n { color: var(--text); }
   .cal button.today .n { color: var(--accent); font-weight: 700; text-decoration: underline; }
@@ -139,20 +134,8 @@
     <label for="code">Start / shift</label>
     <select id="code"></select>
 
-    <label>Soort</label>
-    <div class="seg" id="mode">
-      <button type="button" data-mode="shift" class="on">Volle shift (7u45)</button>
-      <button type="button" data-mode="uren">Per uur</button>
-    </div>
-
-    <div id="shiftFields">
-      <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
-      <input id="ot" inputmode="decimal" placeholder="0">
-    </div>
-    <div id="urenFields" hidden>
-      <label for="hours">Gewerkte uren, bv. 4u00</label>
-      <input id="hours" inputmode="decimal" placeholder="0">
-    </div>
+    <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
+    <input id="ot" inputmode="decimal" placeholder="0">
 
     <label for="note">Notitie (optioneel)</label>
     <input id="note" placeholder="bv. schip, kaai…">
@@ -178,7 +161,7 @@
       <summary>Tarieven aanpassen</summary>
       <p class="hint">Als de lonen geïndexeerd worden, pas je ze hier aan. Dagen die je al opgeslagen hebt, houden het tarief van toen.</p>
       <table class="rates">
-        <thead><tr><th>Start</th><th>Shift</th><th>Uur</th><th>Overuur</th></tr></thead>
+        <thead><tr><th>Start</th><th>Shift</th><th>Overuur</th></tr></thead>
         <tbody id="ratesBody"></tbody>
       </table>
       <button class="btn ghost" id="resetRates">Standaardtarieven terugzetten</button>
@@ -201,26 +184,24 @@
 
 <script>
 (() => {
-  const DAY_HOURS = 7.75; // 7u45
-
   const DEFAULT_RATES = [
-    { id: '04', label: '04u00 (I)', shift: 261.74, uur: 36.10, overuur: 54.15 },
-    { id: '05', label: '05u00 (J)', shift: 222.48, uur: 30.69, overuur: 46.04 },
-    { id: '06', label: '06u00 (H)', shift: 183.21, uur: 25.27, overuur: 37.91 },
-    { id: '07', label: '07u00 (B)', shift: 178.12, uur: 24.57, overuur: 36.86 },
-    { id: '08', label: '08u00 (A)', shift: 174.49, uur: 24.07, overuur: 36.11 },
-    { id: '09', label: '09u00 (C)', shift: 185.34, uur: 25.56, overuur: 38.34 },
-    { id: '10', label: '10u00 (D)', shift: 187.58, uur: 25.87, overuur: 38.81 },
-    { id: '11', label: '11u00 (E)', shift: 187.58, uur: 25.87, overuur: 38.81 },
-    { id: '12', label: '12u00 (F)', shift: 200.66, uur: 27.68, overuur: 41.52 },
-    { id: '13', label: '13u00 (G)', shift: 200.66, uur: 27.68, overuur: 41.52 },
-    { id: '14', label: '14u00 (N)', shift: 200.66, uur: 27.68, overuur: 41.52 },
-    { id: '15', label: '15u00 (O)', shift: 209.10, uur: 28.84, overuur: 43.26 },
-    { id: '16', label: '16u00 (P)', shift: 217.52, uur: 30.00, overuur: 45.00 },
-    { id: '17', label: '17u00 (Q)', shift: 225.94, uur: 31.16, overuur: 46.74 },
-    { id: '18', label: '18u–22u (V W X Y Z)', shift: 261.74, uur: 36.10, overuur: 54.15 },
-    { id: 'ZA', label: 'Zaterdag', shift: 261.74, uur: 36.10, overuur: 54.15 },
-    { id: 'ZO', label: 'Zon- en feestdag', shift: 348.98, uur: 48.14, overuur: 72.21 },
+    { id: '04', label: '04u00 (I)', shift: 261.74, overuur: 54.15 },
+    { id: '05', label: '05u00 (J)', shift: 222.48, overuur: 46.04 },
+    { id: '06', label: '06u00 (H)', shift: 183.21, overuur: 37.91 },
+    { id: '07', label: '07u00 (B)', shift: 178.12, overuur: 36.86 },
+    { id: '08', label: '08u00 (A)', shift: 174.49, overuur: 36.11 },
+    { id: '09', label: '09u00 (C)', shift: 185.34, overuur: 38.34 },
+    { id: '10', label: '10u00 (D)', shift: 187.58, overuur: 38.81 },
+    { id: '11', label: '11u00 (E)', shift: 187.58, overuur: 38.81 },
+    { id: '12', label: '12u00 (F)', shift: 200.66, overuur: 41.52 },
+    { id: '13', label: '13u00 (G)', shift: 200.66, overuur: 41.52 },
+    { id: '14', label: '14u00 (N)', shift: 200.66, overuur: 41.52 },
+    { id: '15', label: '15u00 (O)', shift: 209.10, overuur: 43.26 },
+    { id: '16', label: '16u00 (P)', shift: 217.52, overuur: 45.00 },
+    { id: '17', label: '17u00 (Q)', shift: 225.94, overuur: 46.74 },
+    { id: '18', label: '18u–22u (V W X Y Z)', shift: 261.74, overuur: 54.15 },
+    { id: 'ZA', label: 'Zaterdag', shift: 261.74, overuur: 54.15 },
+    { id: 'ZO', label: 'Zon- en feestdag', shift: 348.98, overuur: 72.21 },
   ];
 
   // --- opslag -------------------------------------------------------------
@@ -235,7 +216,6 @@
 
   let entries = load(KEY_ENTRIES, []);
   let rates = load(KEY_RATES, null) || structuredClone(DEFAULT_RATES);
-  let mode = 'shift';
   const today = new Date();
   let viewYear = today.getFullYear();
   let viewMonth = today.getMonth();
@@ -266,10 +246,37 @@
     return `${Math.floor(mins / 60)}u${pad(mins % 60)}`;
   };
 
-  function calc(e) {
-    if (e.mode === 'uren') return { base: round2(e.hours * e.rate.uur), ot: 0 };
-    return { base: e.rate.shift, ot: round2(e.overtime * e.rate.overuur) };
+  const calc = (e) => ({ base: e.rate.shift, ot: round2(e.overtime * e.rate.overuur) });
+
+  // --- Belgische feestdagen ------------------------------------------------
+  const holidayCache = {};
+  function holidays(year) {
+    if (holidayCache[year]) return holidayCache[year];
+    // Pasen (Gregoriaans, anonieme methode)
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = new Date(year, month - 1, day);
+    const plus = (n) => isoDate(new Date(year, easter.getMonth(), easter.getDate() + n));
+    return (holidayCache[year] = {
+      [`${year}-01-01`]: 'Nieuwjaar',
+      [plus(0)]: 'Pasen',
+      [plus(1)]: 'Paasmaandag',
+      [`${year}-05-01`]: 'Dag van de Arbeid',
+      [plus(39)]: 'O.L.H. Hemelvaart',
+      [plus(49)]: 'Pinksteren',
+      [plus(50)]: 'Pinkstermaandag',
+      [`${year}-07-21`]: 'Nationale feestdag',
+      [`${year}-08-15`]: 'O.L.V. Hemelvaart',
+      [`${year}-11-01`]: 'Allerheiligen',
+      [`${year}-11-11`]: 'Wapenstilstand',
+      [`${year}-12-25`]: 'Kerstmis',
+    });
   }
+  const holidayName = (iso) => holidays(Number(iso.slice(0, 4)))[iso];
 
   // --- formulier ----------------------------------------------------------
   function fillCodes() {
@@ -282,47 +289,36 @@
     const d = new Date($('date').value + 'T12:00');
     if (isNaN(d)) return;
     const wd = d.getDay();
-    if (wd === 6) $('code').value = 'ZA';
-    else if (wd === 0) $('code').value = 'ZO';
+    if (wd === 0 || holidayName($('date').value)) $('code').value = 'ZO';
+    else if (wd === 6) $('code').value = 'ZA';
     else if ($('code').value === 'ZA' || $('code').value === 'ZO') $('code').value = '08';
     updatePreview();
   }
 
   function readForm() {
     const rate = rateById($('code').value);
-    const overtime = mode === 'shift' ? parseHours($('ot').value) : 0;
-    const hours = mode === 'uren' ? parseHours($('hours').value) : DAY_HOURS;
     return {
-      date: $('date').value, code: rate.id, label: rate.label, mode,
-      hours, overtime, note: $('note').value.trim(),
-      rate: { shift: rate.shift, uur: rate.uur, overuur: rate.overuur },
+      date: $('date').value, code: rate.id, label: rate.label,
+      overtime: parseHours($('ot').value), note: $('note').value.trim(),
+      rate: { shift: rate.shift, overuur: rate.overuur },
     };
   }
 
   function updatePreview() {
     const e = readForm();
-    if (Number.isNaN(e.overtime) || Number.isNaN(e.hours)) { $('preview').textContent = '—'; return; }
+    if (Number.isNaN(e.overtime)) { $('preview').textContent = '—'; return; }
     const c = calc(e);
     $('preview').textContent = money(c.base + c.ot);
-  }
-
-  function setMode(m) {
-    mode = m;
-    document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
-    $('shiftFields').hidden = m !== 'shift';
-    $('urenFields').hidden = m !== 'uren';
-    updatePreview();
   }
 
   function addEntry() {
     const e = readForm();
     if (!e.date) return alert('Kies een datum.');
-    if (Number.isNaN(e.overtime) || Number.isNaN(e.hours)) return alert('Uren niet herkend. Schrijf bv. 1u30 of 1,5.');
-    if (e.mode === 'uren' && e.hours <= 0) return alert('Vul het aantal gewerkte uren in.');
+    if (Number.isNaN(e.overtime)) return alert('Overuren niet herkend. Schrijf bv. 1u30 of 1,5.');
     e.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     entries.push(e);
     save(KEY_ENTRIES, entries);
-    $('ot').value = ''; $('hours').value = ''; $('note').value = '';
+    $('ot').value = ''; $('note').value = '';
     updatePreview();
     render();
   }
@@ -337,11 +333,10 @@
     return list.reduce((t, e) => {
       const c = calc(e);
       t.base += c.base; t.ot += c.ot;
-      t.otH += e.mode === 'shift' ? e.overtime : 0;
-      t.shifts += e.mode === 'shift' ? 1 : 0;
-      t.hours += e.hours + (e.mode === 'shift' ? e.overtime : 0);
+      t.otH += e.overtime;
+      t.shifts += 1;
       return t;
-    }, { base: 0, ot: 0, otH: 0, shifts: 0, hours: 0 });
+    }, { base: 0, ot: 0, otH: 0, shifts: 0 });
   }
 
   // korte aanduiding in de kalender: startuur, of Za / Zo
@@ -373,7 +368,7 @@
       const iso = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
       const list = dayEntries(iso);
       const wd = (lead + day - 1) % 7;
-      const cls = [wd >= 5 && 'we', list.length && 'work', iso === todayIso && 'today', iso === selected && 'sel']
+      const cls = [wd >= 5 && 'we', holidayName(iso) && 'hol', list.length && 'work', iso === todayIso && 'today', iso === selected && 'sel']
         .filter(Boolean).join(' ');
       let inner = `<span class="n">${day}</span>`;
       if (list.length) {
@@ -388,13 +383,13 @@
 
   function renderDay() {
     const d = new Date(selected + 'T12:00');
-    $('dayTitle').textContent = d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const hol = holidayName(selected);
+    $('dayTitle').textContent = d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })
+      + (hol ? ` · ${hol}` : '');
     const list = dayEntries(selected);
     $('list').innerHTML = list.map((e) => {
       const c = calc(e);
-      const detail = e.mode === 'uren'
-        ? `${fmtHours(e.hours)} × ${money(e.rate.uur)}`
-        : `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
+      const detail = `shift ${money(e.rate.shift)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
       const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
       return `<li><div class="li-main"><div class="d">${escapeHtml(e.label)}</div>
         <div class="m">${detail}${note}</div></div>
@@ -412,7 +407,7 @@
     const list = monthEntries(viewYear, viewMonth);
     const t = totals(list);
     $('tTotal').textContent = $('tTotalTop').textContent = money(t.base + t.ot);
-    $('tShifts').textContent = t.shifts + (list.length > t.shifts ? ` (+${list.length - t.shifts} uur)` : '');
+    $('tShifts').textContent = t.shifts;
     $('tBase').textContent = money(t.base);
     $('tOtH').textContent = fmtHours(t.otH);
     $('tOt').textContent = money(t.ot);
@@ -431,7 +426,7 @@
   // --- tarieven -----------------------------------------------------------
   function renderRates() {
     $('ratesBody').innerHTML = rates.map((r, i) => `<tr><td>${r.label}</td>
-      ${['shift', 'uur', 'overuur'].map((k) => `<td><input inputmode="decimal" data-i="${i}" data-k="${k}" value="${String(r[k].toFixed(2)).replace('.', ',')}"></td>`).join('')}
+      ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-i="${i}" data-k="${k}" value="${String(r[k].toFixed(2)).replace('.', ',')}"></td>`).join('')}
     </tr>`).join('');
   }
   $('ratesBody').addEventListener('change', (ev) => {
@@ -476,11 +471,11 @@
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Shift', 'Soort', 'Uren', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
+    const rows = [['Datum', 'Shift', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
       const c = calc(e);
-      rows.push([e.date, e.label, e.mode === 'uren' ? 'per uur' : 'shift', num(e.hours), num(e.overtime),
+      rows.push([e.date, e.label, num(e.overtime),
         num(c.base), num(c.ot), num(c.base + c.ot), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -495,12 +490,11 @@
     save(KEY_ENTRIES, entries);
     render();
   });
-  document.querySelectorAll('#mode button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
   $('cal').addEventListener('click', (ev) => {
     const iso = ev.target.closest('button[data-date]')?.dataset.date;
     if (iso) selectDay(iso, true);
   });
-  ['code', 'ot', 'hours'].forEach((id) => $(id).addEventListener('input', updatePreview));
+  ['code', 'ot'].forEach((id) => $(id).addEventListener('input', updatePreview));
   $('add').addEventListener('click', addEntry);
   // bij maandwissel: zelfde dagnummer selecteren (of laatste dag van de maand)
   const shiftMonth = (delta) => {
