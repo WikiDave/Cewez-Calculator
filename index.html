@@ -133,13 +133,50 @@
   .newco .tools .btn { margin-top: 12px; }
   .monthsum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
   .monthsum b { font-size: 20px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .modebar { display: flex; justify-content: center; margin-top: 10px; }
+  .modebar .ptabs { margin: 0; }
+  .check {
+    display: flex; gap: 10px; align-items: center; color: var(--text); font-size: 15px; margin: 12px 0 0;
+  }
+  .check input { width: 22px; height: 22px; min-height: 0; margin: 0; flex: none; accent-color: var(--accent); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .est {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+    color: var(--ot); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; vertical-align: middle;
+  }
+  .warn { color: var(--ot); font-size: 13px; margin: 8px 0 0; }
+  .net { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .slip { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+  .slip:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  .slip-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .slip-h b { font-size: 16px; }
+  .slip-h span { font-size: 13px; color: var(--muted); }
+  table.slip-t { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  table.slip-t td { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  table.slip-t td:last-child { text-align: right; white-space: nowrap; }
+  table.slip-t tr.sub td { color: var(--muted); font-size: 13px; }
+  table.slip-t tr.mid td { font-weight: 600; }
+  table.slip-t tr.tot td { font-weight: 700; border-bottom: 0; font-size: 16px; }
+  table.slip-t tr.tot td:last-child { color: var(--accent); }
+  .slip details { margin-top: 6px; }
+  .slip details summary { font-weight: 500; font-size: 14px; color: var(--accent); }
+  .hols { list-style: none; margin: 10px 0 0; padding: 0; }
+  .hols li { display: grid; grid-template-columns: 1fr 150px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .hols .d { font-weight: 600; font-size: 14px; }
+  .hols .m { font-size: 12px; color: var(--muted); }
+  .hols input { min-height: 40px; padding: 6px 8px; }
+  .yearbar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .yearbar b { flex: 1; text-align: center; }
+  .yearbar button {
+    width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer;
+  }
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1>Haven Werkuren</h1>
-    <p class="sub">Shiften en overuren bijhouden, per maand (bruto)</p>
+    <p class="sub">Shiften, overuren en netto per uitbetaling</p>
   </header>
 
   <section class="card">
@@ -148,13 +185,18 @@
       <h2 id="monthTitle"></h2>
       <button id="next" aria-label="Volgende maand">›</button>
     </div>
+    <div class="modebar"><div class="ptabs" id="showMode">
+      <button type="button" data-m="bruto">Bruto</button>
+      <button type="button" data-m="netto">Netto</button>
+    </div></div>
     <div class="cal-head"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
     <div class="cal" id="cal"></div>
-    <div class="monthsum"><span>Totaal bruto</span><b id="tTotalTop"></b></div>
+    <div class="monthsum"><span id="sumLabel">Totaal bruto</span><b id="tTotalTop"></b></div>
   </section>
 
   <section class="card" id="dayCard">
     <h2 id="dayTitle"></h2>
+    <p class="hint" id="dayNote" hidden></p>
     <ul class="list" id="list"></ul>
     <input type="hidden" id="date">
 
@@ -171,30 +213,130 @@
       </div>
     </div>
 
-    <label for="code">Start / shift</label>
-    <select id="code"></select>
+    <label for="kind">Soort</label>
+    <select id="kind">
+      <option value="full">Volle shift</option>
+      <option value="half">Halve shift</option>
+      <option value="afbestel">Afbestelling weekend (€ 115,16)</option>
+    </select>
 
-    <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
-    <input id="ot" inputmode="decimal" placeholder="0">
+    <div id="workFields">
+      <div class="row2">
+        <div>
+          <label for="code">Start</label>
+          <select id="code"></select>
+        </div>
+        <div>
+          <label for="tariff">Tarief</label>
+          <select id="tariff">
+            <option value="auto">Automatisch</option>
+            <option value="wk">Weekdag</option>
+            <option value="ZA">Zaterdag</option>
+            <option value="ZO">Zon- en feestdag</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint" id="tariffHint"></p>
+
+      <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
+      <input id="ot" inputmode="decimal" placeholder="0">
+
+      <label class="check"><input type="checkbox" id="wijziging"> Wijzigingsvergoeding (€ 17,17)</label>
+    </div>
 
     <label for="note">Notitie (optioneel)</label>
     <input id="note" placeholder="bv. schip, kaai…">
 
-    <div class="preview"><span>Deze shift</span><b id="preview">€ 0,00</b></div>
+    <div class="preview"><span>Deze shift bruto<br><span class="net" id="previewNet"></span></span><b id="preview">€ 0,00</b></div>
     <button class="btn" id="add">Opslaan</button>
   </section>
 
   <section class="card">
     <h2 id="sumTitle"></h2>
     <div class="totals">
-      <div class="stat big"><div class="k">Totaal bruto deze maand</div><div class="v" id="tTotal"></div></div>
+      <div class="stat big"><div class="k">Bruto deze maand</div><div class="v" id="tTotal"></div></div>
+      <div class="stat big"><div class="k">Netto deze maand <span class="est" id="tNetEst" hidden>schatting</span></div><div class="v" id="tNet"></div></div>
       <div class="stat"><div class="k">Shiften</div><div class="v" id="tShifts"></div></div>
-      <div class="stat"><div class="k">Basis</div><div class="v" id="tBase"></div></div>
       <div class="stat"><div class="k">Overuren</div><div class="v ot" id="tOtH"></div></div>
-      <div class="stat"><div class="k">Overuren bedrag</div><div class="v ot" id="tOt"></div></div>
     </div>
     <ul class="list" id="perCo"></ul>
     <p class="hint" id="yearLine"></p>
+  </section>
+
+  <section class="card">
+    <h2>Uitbetalingen</h2>
+    <div id="slips"></div>
+  </section>
+
+  <section class="card">
+    <details id="settingsBox">
+      <summary>Netto-instellingen</summary>
+      <p class="hint">Hiermee rekent de app je netto uit. Je gegevens blijven op dit toestel.</p>
+      <label for="sStatus">Statuut</label>
+      <select id="sStatus" data-s="status">
+        <option value="gelegenheid">Gelegenheidsarbeider</option>
+        <option value="pool">Erkend (pool)</option>
+      </select>
+      <label for="sTransport">Vervoer</label>
+      <select id="sTransport" data-s="transport">
+        <option value="auto">Eigen vervoer</option>
+        <option value="fiets">Fiets</option>
+      </select>
+      <div id="placeWrap">
+        <label for="sPlace">Woonplaats (deelgemeente)</label>
+        <select id="sPlace" data-s="place"></select>
+      </div>
+      <div class="row2" id="bikeWrap">
+        <div><label for="sBikeKm">Km per shift</label><input id="sBikeKm" data-s="bikeKm" data-t="num" inputmode="decimal"></div>
+        <div><label for="sBikeRate">Bedrag per km</label><input id="sBikeRate" data-s="bikeRate" data-t="num" inputmode="decimal"></div>
+      </div>
+      <label for="sCivil">Burgerlijke staat</label>
+      <select id="sCivil" data-s="civil">
+        <option value="ongehuwd">Ongehuwd</option>
+        <option value="gehuwd">Gehuwd</option>
+        <option value="wettelijk-samenwonend">Wettelijk samenwonend</option>
+        <option value="gescheiden">Gescheiden</option>
+        <option value="weduwe">Weduwe / weduwnaar</option>
+      </select>
+      <label class="check"><input type="checkbox" id="sSpouse" data-s="spouseDependent" data-t="bool"> Echtgeno(o)t(e) ten laste</label>
+      <div class="row2">
+        <div><label for="sKids">Kinderen ten laste</label><input id="sKids" data-s="kids" data-t="num" inputmode="numeric"></div>
+        <div><label for="sOthers">Anderen ten laste</label><input id="sOthers" data-s="others" data-t="num" inputmode="numeric"></div>
+      </div>
+      <label for="sExtraWh">Extra vrijwillige voorheffing per uitbetaling</label>
+      <input id="sExtraWh" data-s="extraWithholding" data-t="num" inputmode="decimal">
+
+      <details>
+        <summary>Meer (nog niet gekende bedragen)</summary>
+        <p class="hint">Deze staan standaard op 0. Vul ze in als ze op je loonbrief staan.</p>
+        <div class="row2">
+          <div><label for="sWerkbonus">Werkbonus</label><input id="sWerkbonus" data-s="werkbonus" data-t="num" inputmode="decimal"></div>
+          <div><label for="sSpecial">Speciale bijdrage</label><input id="sSpecial" data-s="specialContribution" data-t="num" inputmode="decimal"></div>
+          <div><label for="sGroup">Groepsverzekering</label><input id="sGroup" data-s="groupInsurance" data-t="num" inputmode="decimal"></div>
+          <div><label for="sAdvance">Voorschot</label><input id="sAdvance" data-s="advance" data-t="num" inputmode="decimal"></div>
+          <div><label for="sGarn">Loonbeslag</label><input id="sGarn" data-s="garnishment" data-t="num" inputmode="decimal"></div>
+          <div><label for="sVol">Vrijwillige afhoudingen</label><input id="sVol" data-s="voluntary" data-t="num" inputmode="decimal"></div>
+        </div>
+        <label for="sExtraType">Wijzigings- en afbestelvergoeding</label>
+        <select id="sExtraType" data-s="extraType">
+          <option value="A">Met RSZ en voorheffing</option>
+          <option value="D">Zonder RSZ en voorheffing</option>
+        </select>
+      </details>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Feestdagen</summary>
+      <p class="hint">Op de dag waarop de haven een feestdag viert, geldt het zon- en feestdagtarief. Valt een feestdag in het weekend, vul dan de vervangingsdag in.</p>
+      <div class="yearbar">
+        <button id="holPrev" aria-label="Vorig jaar">‹</button>
+        <b id="holYear"></b>
+        <button id="holNext" aria-label="Volgend jaar">›</button>
+      </div>
+      <ul class="hols" id="holList"></ul>
+    </details>
   </section>
 
   <section class="card">
@@ -241,34 +383,9 @@
   </section>
 </main>
 
+<script src="loon.js"></script>
 <script>
 (() => {
-  const SHIFTS = [
-    ['04', '04u00 (I)'], ['05', '05u00 (J)'], ['06', '06u00 (H)'], ['07', '07u00 (B)'], ['08', '08u00 (A)'],
-    ['09', '09u00 (C)'], ['10', '10u00 (D)'], ['11', '11u00 (E)'], ['12', '12u00 (F)'], ['13', '13u00 (G)'],
-    ['14', '14u00 (N)'], ['15', '15u00 (O)'], ['16', '16u00 (P)'], ['17', '17u00 (Q)'],
-    ['18', '18u–22u (V W X Y Z)'], ['ZA', 'Zaterdag'], ['ZO', 'Zon- en feestdag'],
-  ].map(([id, label]) => ({ id, label }));
-  const shiftLabel = (id) => SHIFTS.find((x) => x.id === id)?.label || id;
-
-  // tarieven per periode: [shift, overuur] in dezelfde volgorde als SHIFTS
-  const ratesFrom = (pairs) => Object.fromEntries(SHIFTS.map((x, i) => [x.id, { shift: pairs[i][0], overuur: pairs[i][1] }]));
-  const DEFAULT_PERIODS = [
-    { from: '', values: ratesFrom([
-      [261.74, 54.15], [222.48, 46.04], [183.21, 37.91], [178.12, 36.86], [174.49, 36.11],
-      [185.34, 38.34], [187.58, 38.81], [187.58, 38.81], [200.66, 41.52], [200.66, 41.52],
-      [200.66, 41.52], [209.10, 43.26], [217.52, 45.00], [225.94, 46.74],
-      [261.74, 54.15], [261.74, 54.15], [348.98, 72.21],
-    ]) },
-    // indexering: juiste ingangsdatum nog niet gekend, voorlopig 1 oktober 2026
-    { from: '2026-10-01', values: ratesFrom([
-      [270.18, 55.91], [229.66, 47.52], [189.13, 39.14], [183.82, 38.03], [180.12, 37.26],
-      [191.28, 39.57], [193.63, 40.07], [193.63, 40.07], [207.14, 42.86], [207.14, 42.86],
-      [207.14, 42.86], [215.83, 44.66], [224.53, 46.46], [233.23, 48.26],
-      [270.18, 55.91], [270.18, 55.91], [360.24, 74.54],
-    ]) },
-  ];
-
   const DEFAULT_COMPANIES = [
     ['sea-invest', 'SEA-Invest BNFW', 'SEA-Invest'],
     ['van-der-vlist', 'Van der Vlist', 'Van der Vlist'],
@@ -294,6 +411,7 @@
     ['hoppe', 'Hoppe', 'Hoppe'],
   ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
   const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
+  const ROW_NAMES = { ZA: 'zaterdagtarief', ZO: 'zon- en feestdagtarief' };
 
   // --- opslag -------------------------------------------------------------
   const KEY_ENTRIES = 'haven-werkuren.entries';
@@ -301,6 +419,9 @@
   const KEY_CUSTOM_CO = 'haven-werkuren.customCompanies';
   const KEY_HIDDEN_CO = 'haven-werkuren.hiddenCompanies';
   const KEY_LAST_CO = 'haven-werkuren.lastCompany';
+  const KEY_SETTINGS = 'haven-werkuren.settings';
+  const KEY_HOLIDAYS = 'haven-werkuren.holidays';
+  const KEY_MODE = 'haven-werkuren.showMode';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -308,8 +429,25 @@
     try { localStorage.setItem(k, JSON.stringify(v)); } catch { alert('Opslaan mislukt: browseropslag niet beschikbaar.'); }
   };
 
-  let entries = load(KEY_ENTRIES, []);
-  let periods = load(KEY_PERIODS, null) || structuredClone(DEFAULT_PERIODS);
+  // oudere dagen: tarief 'ZA'/'ZO' zat vroeger in het startuur
+  const migrateEntry = (e) => {
+    const x = { kind: 'full', tariff: 'auto', ...e };
+    if (x.code === 'ZA' || x.code === 'ZO') { x.tariff = x.code; x.code = '08'; }
+    delete x.rate; delete x.label;
+    return x;
+  };
+  // de geïndexeerde tabel stond eerst voorlopig op 1 oktober; hij geldt vanaf 7 juli 2026
+  const migratePeriods = (list) => {
+    const indexed = JSON.stringify(Loon.DEFAULT_RATE_PERIODS[1].values);
+    for (const pr of list) if (pr.from === '2026-10-01' && JSON.stringify(pr.values) === indexed) pr.from = '2026-07-07';
+    return list;
+  };
+
+  let entries = load(KEY_ENTRIES, []).map(migrateEntry);
+  let periods = migratePeriods(load(KEY_PERIODS, null) || structuredClone(Loon.DEFAULT_RATE_PERIODS));
+  let settings = { ...Loon.DEFAULT_SETTINGS, ...load(KEY_SETTINGS, {}) };
+  let holidayOverrides = load(KEY_HOLIDAYS, {});
+  let showMode = load(KEY_MODE, 'bruto');
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -318,18 +456,20 @@
   const today = new Date();
   let viewYear = today.getFullYear();
   let viewMonth = today.getMonth();
+  let holYear = viewYear;
   let selected = '';
+  let calc = { periods: {}, shifts: {} }; // resultaat van Loon.calcAll, vernieuwd bij elke render
 
   // --- helpers ------------------------------------------------------------
   const $ = (id) => document.getElementById(id);
   const eur = new Intl.NumberFormat('nl-BE', { style: 'currency', currency: 'EUR' });
   const money = (n) => eur.format(n || 0);
-  const round2 = (n) => Math.round(Number((n * 100).toFixed(6))) / 100;
+  const round2 = Loon.round2;
   const pad = (n) => String(n).padStart(2, '0');
   const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  // periodes staan gesorteerd op datum; de eerste heeft geen begindatum
-  const periodFor = (date) => periods.filter((pr) => pr.from <= date).pop() || periods[0];
-  const rateFor = (date, code) => periodFor(date).values[code];
+  const fmtDate = (iso, opts = { day: 'numeric', month: 'short', year: 'numeric' }) => new Date(iso + 'T12:00').toLocaleDateString('nl-BE', opts);
+  const ctx = () => ({ ratePeriods: periods, settings, holidays: holidayOverrides });
+  const startLabel = (code) => Loon.START_HOURS.find((x) => x.id === code)?.label || code;
 
   // "1u30", "1:30", "1,5", "1.5", "90m" -> uren als getal
   function parseHours(str) {
@@ -342,45 +482,28 @@
     const n = Number(s.replace(',', '.'));
     return Number.isFinite(n) && n >= 0 ? n : NaN;
   }
+  // aantal uren, bv. "18 uur" of "1 uur 30" (niet te verwarren met een startuur)
   const fmtHours = (h) => {
-    const mins = Math.round(h * 60);
-    return `${Math.floor(mins / 60)}u${pad(mins % 60)}`;
+    const mins = Math.round(h * 60), m = mins % 60;
+    return `${Math.floor(mins / 60)} uur${m ? ' ' + pad(m) : ''}`;
   };
-
-  const calc = (e) => {
-    const r = rateFor(e.date, e.code);
-    return { base: r.shift, ot: round2(e.overtime * r.overuur) };
-  };
-
-  // --- Belgische feestdagen ------------------------------------------------
-  const holidayCache = {};
-  function holidays(year) {
-    if (holidayCache[year]) return holidayCache[year];
-    // Pasen (Gregoriaans, anonieme methode)
-    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
-    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
-    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const m = Math.floor((a + 11 * h + 22 * l) / 451);
-    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
-    const easter = new Date(year, month - 1, day);
-    const plus = (n) => isoDate(new Date(year, easter.getMonth(), easter.getDate() + n));
-    return (holidayCache[year] = {
-      [`${year}-01-01`]: 'Nieuwjaar',
-      [plus(0)]: 'Pasen',
-      [plus(1)]: 'Paasmaandag',
-      [`${year}-05-01`]: 'Dag van de Arbeid',
-      [plus(39)]: 'O.L.H. Hemelvaart',
-      [plus(49)]: 'Pinksteren',
-      [plus(50)]: 'Pinkstermaandag',
-      [`${year}-07-21`]: 'Nationale feestdag',
-      [`${year}-08-15`]: 'O.L.V. Hemelvaart',
-      [`${year}-11-01`]: 'Allerheiligen',
-      [`${year}-11-11`]: 'Wapenstilstand',
-      [`${year}-12-25`]: 'Kerstmis',
-    });
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-  const holidayName = (iso) => holidays(Number(iso.slice(0, 4)))[iso];
+
+  const holidayName = (iso) => Loon.holidayOn(iso, holidayOverrides);
+  // wettelijke feestdag op deze kalenderdatum die in het weekend valt (geen feestdagtarief)
+  const movedHoliday = (iso) => Loon.holidays(Number(iso.slice(0, 4)), holidayOverrides)
+    .find((h) => h.date === iso && h.effective !== iso);
+
+  // omschrijving van een shift, bv. "08u00 (A) · zaterdagtarief"
+  function entryTitle(e) {
+    if (e.kind === 'afbestel') return 'Afbestelling weekend';
+    const x = calc.shifts[e.id];
+    return [startLabel(e.code), e.kind === 'half' && 'halve shift', x && ROW_NAMES[x.row]].filter(Boolean).join(' · ');
+  }
+  const shiftOf = (e) => calc.shifts[e.id] || { bruto: 0, netto: 0, lines: [] };
+  const overtimeOf = (e) => (e.kind === 'afbestel' ? 0 : e.overtime || 0);
 
   // --- bedrijven -----------------------------------------------------------
   // ook verborgen bedrijven opzoeken, zodat oude dagen hun logo houden
@@ -480,25 +603,15 @@
 
   // --- formulier ----------------------------------------------------------
   function fillCodes() {
-    const cur = $('code').value;
-    $('code').innerHTML = SHIFTS.map((r) => `<option value="${r.id}">${r.label}</option>`).join('');
-    if (cur) $('code').value = cur;
-  }
-
-  function autoPickDay() {
-    const d = new Date($('date').value + 'T12:00');
-    if (isNaN(d)) return;
-    const wd = d.getDay();
-    if (wd === 0 || holidayName($('date').value)) $('code').value = 'ZO';
-    else if (wd === 6) $('code').value = 'ZA';
-    else if ($('code').value === 'ZA' || $('code').value === 'ZO') $('code').value = '08';
-    updatePreview();
+    $('code').innerHTML = Loon.START_HOURS.map((r) => `<option value="${r.id}">${r.label}</option>`).join('');
+    $('code').value = '08';
   }
 
   function readForm() {
-    const code = $('code').value;
     return {
-      date: $('date').value, code, label: shiftLabel(code),
+      id: '__preview',
+      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value,
+      wijziging: $('wijziging').checked,
       company: companyId, companyName: companyById(companyId)?.name || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
     };
@@ -506,9 +619,18 @@
 
   function updatePreview() {
     const e = readForm();
-    if (Number.isNaN(e.overtime)) { $('preview').textContent = '—'; return; }
-    const c = calc(e);
-    $('preview').textContent = money(c.base + c.ot);
+    $('workFields').hidden = e.kind === 'afbestel';
+    const auto = Loon.tariffRow(e.date, e.code, holidayOverrides, 'auto');
+    $('tariffHint').textContent = e.tariff === 'auto'
+      ? `Automatisch: ${ROW_NAMES[auto] || 'weekdagtarief'}`
+      : `Automatisch zou ${ROW_NAMES[auto] || 'weekdagtarief'} zijn.`;
+    if (Number.isNaN(e.overtime)) { $('preview').textContent = '—'; $('previewNet').textContent = ''; return; }
+    // netto van deze shift: bereken de uitbetaling opnieuw met deze shift erbij
+    const key = Loon.periodOf(e.date).key;
+    const same = entries.filter((x) => Loon.periodOf(x.date).key === key);
+    const x = Loon.calcAll([...same, e], ctx()).shifts[e.id];
+    $('preview').textContent = money(x.bruto);
+    $('previewNet').textContent = `netto ± ${money(x.netto)}`;
   }
 
   function addEntry() {
@@ -516,10 +638,11 @@
     if (!e.date) return alert('Kies een datum.');
     if (Number.isNaN(e.overtime)) return alert('Overuren niet herkend. Schrijf bv. 1u30 of 1,5.');
     e.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    if (e.kind === 'afbestel') { e.overtime = 0; e.wijziging = false; }
     entries.push(e);
     save(KEY_ENTRIES, entries);
-    $('ot').value = ''; $('note').value = '';
-    updatePreview();
+    $('ot').value = ''; $('note').value = ''; $('wijziging').checked = false;
+    $('kind').value = 'full'; $('tariff').value = 'auto';
     renderCompanyPicker();
     render();
   }
@@ -532,21 +655,17 @@
 
   function totals(list) {
     return list.reduce((t, e) => {
-      const c = calc(e);
-      t.base += c.base; t.ot += c.ot;
-      t.otH += e.overtime;
-      t.shifts += 1;
+      const x = shiftOf(e);
+      t.bruto = round2(t.bruto + x.bruto); t.netto = round2(t.netto + x.netto);
+      t.otH += overtimeOf(e);
+      t.shifts += e.kind === 'afbestel' ? 0 : 1;
       return t;
-    }, { base: 0, ot: 0, otH: 0, shifts: 0 });
+    }, { bruto: 0, netto: 0, otH: 0, shifts: 0 });
   }
+  const shown = (t) => (showMode === 'netto' ? t.netto : t.bruto);
 
-  // korte aanduiding in de kalender: startuur, of Za / Zo
-  const shortCode = (e) => {
-    if (e.code === 'ZA') return 'Za';
-    if (e.code === 'ZO') return 'Zo';
-    if (e.code === '18') return '18u+';
-    return Number(e.code) + 'u';
-  };
+  // korte aanduiding in de kalender: startuur
+  const shortCode = (e) => (e.kind === 'afbestel' ? 'Afb.' : e.code === '18' ? '18u+' : Number(e.code) + 'u');
   const dayEntries = (iso) => entries.filter((e) => e.date === iso);
 
   function selectDay(iso, scroll) {
@@ -554,7 +673,6 @@
     $('date').value = iso;
     const d = new Date(iso + 'T12:00');
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
-    autoPickDay();
     render();
     if (scroll) $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -578,7 +696,7 @@
         const mark = withCo.length
           ? `<span class="logos">${withCo.map((e) => logoHtml(e.company, e.companyName)).join('')}</span>`
           : `<span class="c">${list.map(shortCode).join('+')}</span>`;
-        inner += `${mark}<span class="a">${Math.round(t.base + t.ot)}</span>`;
+        inner += `${mark}<span class="a">${Math.round(shown(t))}</span>`;
         if (t.otH) inner += '<span class="dot" title="overuren"></span>';
       }
       html += `<button class="${cls}" data-date="${iso}">${inner}</button>`;
@@ -587,37 +705,95 @@
   }
 
   function renderDay() {
-    const d = new Date(selected + 'T12:00');
     const hol = holidayName(selected);
-    $('dayTitle').textContent = d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })
-      + (hol ? ` · ${hol}` : '');
+    const moved = movedHoliday(selected);
+    $('dayTitle').textContent = fmtDate(selected, { weekday: 'long', day: 'numeric', month: 'long' }) + (hol ? ` · ${hol}` : '');
+    $('dayNote').hidden = !moved;
+    if (moved) {
+      $('dayNote').textContent = moved.effective
+        ? `${moved.name} valt in het weekend en wordt gevierd op ${fmtDate(moved.effective, { weekday: 'long', day: 'numeric', month: 'long' })}.`
+        : `${moved.name} valt in het weekend: hier geldt het gewone weekendtarief. Vul de vervangingsdag in bij Feestdagen.`;
+    }
     const list = dayEntries(selected);
     $('list').innerHTML = list.map((e) => {
-      const c = calc(e);
-      const detail = `shift ${money(c.base)}` + (e.overtime ? ` <span class="ot">+ ${fmtHours(e.overtime)} overuren (${money(c.ot)})</span>` : '');
-      const note = e.note ? ` · ${escapeHtml(e.note)}` : '';
+      const x = shiftOf(e);
+      const ot = x.lines.find((l) => l.key === 'overuren');
+      const detail = [
+        e.overtime && e.kind !== 'afbestel' ? `<span class="ot">${fmtHours(e.overtime)} overuren (${money(ot?.amount)})</span>` : '',
+        e.wijziging ? 'wijzigingsvergoeding' : '',
+        `netto ± ${money(x.netto)}`,
+        e.note ? escapeHtml(e.note) : '',
+      ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
       return `<li>${co ? logoHtml(e.company, e.companyName, 'li-logo') : ''}
-        <div class="li-main"><div class="d">${co ? escapeHtml(e.companyName || companyById(e.company)?.name || '') + ' · ' : ''}${escapeHtml(e.label)}</div>
-        <div class="m">${detail}${note}</div></div>
-        <div class="li-amt">${money(c.base + c.ot)}</div>
+        <div class="li-main"><div class="d">${co ? escapeHtml(companyById(e.company)?.name || e.companyName) + ' · ' : ''}${escapeHtml(entryTitle(e))}</div>
+        <div class="m">${detail}</div></div>
+        <div class="li-amt">${money(x.bruto)}</div>
         <button class="del" data-id="${e.id}" aria-label="Verwijderen">✕</button></li>`;
     }).join('');
     $('list').hidden = !list.length;
     $('add').textContent = list.length ? 'Nog een shift toevoegen' : 'Opslaan';
+    updatePreview();
+  }
+
+  // loonbrief per uitbetalingsperiode, in de volgorde van de Cewez-loonbrief
+  function slipHtml(half) {
+    const key = `${viewYear}-${pad(viewMonth + 1)}-${half}`;
+    const r = calc.periods[key];
+    const last = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const month = fmtDate(`${viewYear}-${pad(viewMonth + 1)}-01`, { month: 'long' });
+    const title = half === 'A' ? `1–15 ${month}` : `16–${last} ${month}`;
+    if (!r) return `<div class="slip"><div class="slip-h"><b>${title}</b><span>geen shiften</span></div></div>`;
+    const pay = r.payment.approx ? `uitbetaling rond ${fmtDate(r.payment.date, { day: 'numeric', month: 'short' })}`
+      : `uitbetaling uiterlijk ${fmtDate(r.payment.date, { weekday: 'short', day: 'numeric', month: 'short' })}`;
+    const row = (label, amount, cls = '') => `<tr class="${cls}"><td>${label}</td><td>${money(amount)}</td></tr>`;
+    const est = r.estimate ? ' <span class="est">schatting</span>' : '';
+    const rows = [
+      row('Basis RSZ', r.basisRsz),
+      row('RSZ', -r.rsz),
+      row('Werkbonus', r.werkbonus),
+      row('Belastbaar', r.belastbaar, 'mid'),
+      r.withholdingCalculated || r.voorheffing ? row('Voorheffing', -r.voorheffing) : '<tr><td>Voorheffing</td><td>niet berekend</td></tr>',
+      row('Geen RSZ, geen voorheffing', r.D),
+      row('Speciale bijdrage', -r.special),
+      row('Groepsverzekering', -r.groupInsurance),
+      row('Inhouding maaltijdcheques', -r.mtc),
+      r.otherDeductions ? row('Voorschot, loonbeslag, afhoudingen', -r.otherDeductions) : '',
+      `<tr class="tot"><td>Netto${est}</td><td>${money(r.netto)}</td></tr>`,
+      row('Betaald', r.betaald, 'sub'),
+    ].join('');
+    const lines = {};
+    for (const l of r.lines) {
+      const g = (lines[l.label] ||= { ...l, amount: 0, n: 0 });
+      g.amount = round2(g.amount + l.amount);
+      g.n++;
+    }
+    const detail = Object.values(lines).map((l) => `<tr><td>${escapeHtml(l.label)}${l.n > 1 ? ` (${l.n}×)` : ''} <span class="net">type ${l.type}</span></td><td>${money(l.type === 'M' ? -l.amount : l.amount)}</td></tr>`).join('');
+    const warn = r.withholdingCalculated ? ''
+      : '<p class="warn">Voorheffing niet berekend: de schatting werkt enkel voor een alleenstaande zonder personen ten laste. Het netto is daardoor te hoog.</p>';
+    return `<div class="slip">
+      <div class="slip-h"><b>${title}</b><span>${pay}</span></div>
+      <table class="slip-t">${rows}</table>${warn}
+      <details><summary>Detail (${r.shifts.length} shift${r.shifts.length === 1 ? '' : 'en'})</summary><table class="slip-t">${detail}</table></details>
+    </div>`;
   }
 
   function render() {
-    const title = new Date(viewYear, viewMonth, 1).toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
+    calc = Loon.calcAll(entries, ctx());
+    const title = fmtDate(`${viewYear}-${pad(viewMonth + 1)}-01`, { month: 'long', year: 'numeric' });
     $('monthTitle').textContent = title;
     $('sumTitle').textContent = 'Overzicht ' + title;
+    document.querySelectorAll('#showMode button').forEach((b) => b.classList.toggle('on', b.dataset.m === showMode));
     const list = monthEntries(viewYear, viewMonth);
     const t = totals(list);
-    $('tTotal').textContent = $('tTotalTop').textContent = money(t.base + t.ot);
+    const anyEstimate = list.some((e) => calc.periods[Loon.periodOf(e.date).key]?.estimate);
+    $('sumLabel').innerHTML = showMode === 'netto' ? `Totaal netto${anyEstimate ? ' <span class="est">schatting</span>' : ''}` : 'Totaal bruto';
+    $('tTotalTop').textContent = money(shown(t));
+    $('tTotal').textContent = money(t.bruto);
+    $('tNet').textContent = money(t.netto);
+    $('tNetEst').hidden = !anyEstimate;
     $('tShifts').textContent = t.shifts;
-    $('tBase').textContent = money(t.base);
     $('tOtH').textContent = fmtHours(t.otH);
-    $('tOt').textContent = money(t.ot);
 
     const per = {};
     for (const e of list) {
@@ -632,33 +808,82 @@
           const name = has ? (companyById(e.company)?.name || e.companyName) : 'Geen bedrijf gekozen';
           return `<li>${has ? logoHtml(e.company, e.companyName, 'li-logo') : '<span class="logo li-logo">?</span>'}
             <div class="li-main"><div class="d">${escapeHtml(name)}</div>
-            <div class="m">${gt.shifts} shift${gt.shifts === 1 ? '' : 'en'}${gt.otH ? ` · ${fmtHours(gt.otH)} overuren` : ''}</div></div>
-            <div class="li-amt">${money(gt.base + gt.ot)}</div></li>`;
+            <div class="m">${gt.shifts} shift${gt.shifts === 1 ? '' : 'en'}${gt.otH ? ` · ${fmtHours(gt.otH)} overuren` : ''} · netto ± ${money(gt.netto)}</div></div>
+            <div class="li-amt">${money(gt.bruto)}</div></li>`;
         }).join('')
       : '';
     $('perCo').hidden = !$('perCo').innerHTML;
+
+    $('slips').innerHTML = slipHtml('A') + slipHtml('B');
 
     renderCalendar();
     renderDay();
 
     const yt = totals(entries.filter((e) => e.date.startsWith(String(viewYear))));
-    $('yearLine').textContent = `Heel ${viewYear}: ${money(yt.base + yt.ot)} bruto, waarvan ${money(yt.ot)} overuren (${fmtHours(yt.otH)}).`;
+    $('yearLine').textContent = `Heel ${viewYear}: ${money(yt.bruto)} bruto, ± ${money(yt.netto)} netto, ${fmtHours(yt.otH)} overuren.`;
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  $('showMode').addEventListener('click', (ev) => {
+    const m = ev.target.closest('[data-m]')?.dataset.m;
+    if (!m) return;
+    showMode = m; save(KEY_MODE, m); render();
+  });
+
+  // --- netto-instellingen -------------------------------------------------
+  $('sPlace').innerHTML = Loon.PLACES.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)} (${money(Loon.TRAVEL[Loon.TRAVEL.length - 1].table[p])})</option>`).join('');
+  const settingInputs = [...document.querySelectorAll('[data-s]')];
+  function renderSettings() {
+    for (const el of settingInputs) {
+      const v = settings[el.dataset.s];
+      if (el.dataset.t === 'bool') el.checked = !!v;
+      else if (el.dataset.t === 'num') el.value = v ? String(v).replace('.', ',') : '';
+      else el.value = v;
+    }
+    $('placeWrap').hidden = settings.transport !== 'auto';
+    $('bikeWrap').hidden = settings.transport !== 'fiets';
   }
+  $('settingsBox').addEventListener('change', (ev) => {
+    const el = ev.target.closest('[data-s]');
+    if (!el) return;
+    let v = el.value;
+    if (el.dataset.t === 'bool') v = el.checked;
+    else if (el.dataset.t === 'num') {
+      v = v.trim() ? Number(v.replace(',', '.')) : 0;
+      if (!Number.isFinite(v) || v < 0) { renderSettings(); return alert('Vul een geldig bedrag of aantal in.'); }
+    }
+    settings[el.dataset.s] = v;
+    save(KEY_SETTINGS, settings);
+    renderSettings(); render();
+  });
+
+  // --- feestdagen ---------------------------------------------------------
+  function renderHolidays() {
+    $('holYear').textContent = holYear;
+    $('holList').innerHTML = Loon.holidays(holYear, holidayOverrides).map((h) => `<li>
+      <div><div class="d">${h.name}</div>
+        <div class="m">${fmtDate(h.date, { weekday: 'long', day: 'numeric', month: 'long' })}${h.weekend ? ' · weekend: vervangingsdag invullen' : ''}</div></div>
+      <input type="date" data-hol="${h.date}" value="${h.effective}" aria-label="Gevierd op">
+    </li>`).join('');
+  }
+  $('holList').addEventListener('change', (ev) => {
+    const el = ev.target.closest('[data-hol]');
+    if (!el) return;
+    holidayOverrides[el.dataset.hol] = el.value;
+    save(KEY_HOLIDAYS, holidayOverrides);
+    renderHolidays(); render();
+  });
+  $('holPrev').addEventListener('click', () => { holYear--; renderHolidays(); });
+  $('holNext').addEventListener('click', () => { holYear++; renderHolidays(); });
 
   // --- tarieven -----------------------------------------------------------
-  const fmtDate = (iso) => new Date(iso + 'T12:00').toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' });
-  const dayBefore = (iso) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() - 1); return isoDate(d); };
+  const dayBefore = (iso) => Loon.addDays(iso, -1);
   const periodName = (i) => i === 0
     ? (periods.length > 1 ? `Tot ${fmtDate(dayBefore(periods[1].from))}` : 'Huidige tarieven')
     : `Vanaf ${fmtDate(periods[i].from)}`;
 
   function savePeriods() {
     save(KEY_PERIODS, periods);
-    renderRates(); render(); updatePreview();
+    renderRates(); render();
   }
 
   function renderRates() {
@@ -669,7 +894,7 @@
     $('periodFromWrap').hidden = editPeriod === 0;
     $('periodFrom').value = pr.from;
     $('delPeriod').hidden = editPeriod === 0;
-    $('ratesBody').innerHTML = SHIFTS.map((x) => `<tr><td>${x.label}</td>
+    $('ratesBody').innerHTML = Loon.RATE_ROWS.map((x) => `<tr><td>${x.label}</td>
       ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-id="${x.id}" data-k="${k}" value="${pr.values[x.id][k].toFixed(2).replace('.', ',')}"></td>`).join('')}
     </tr>`).join('');
   }
@@ -713,7 +938,7 @@
   });
   $('resetRates').addEventListener('click', () => {
     if (!confirm('Alle tarieven terugzetten naar de standaardwaarden?')) return;
-    periods = structuredClone(DEFAULT_PERIODS);
+    periods = structuredClone(Loon.DEFAULT_RATE_PERIODS);
     editPeriod = periods.length - 1;
     savePeriods();
   });
@@ -727,7 +952,8 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   $('exportJson').addEventListener('click', () => {
-    download(`werkuren-backup-${isoDate(new Date())}.json`, JSON.stringify({ entries, periods, customCompanies, hiddenCompanies }, null, 2), 'application/json');
+    download(`werkuren-backup-${isoDate(new Date())}.json`,
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -737,23 +963,24 @@
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.entries)) throw new Error();
       if (!confirm(`${data.entries.length} dagen terugzetten? Dit vervangt wat nu op dit toestel staat.`)) return;
-      entries = data.entries;
-      if (Array.isArray(data.periods) && data.periods.length) periods = data.periods;
+      entries = data.entries.map(migrateEntry);
+      if (Array.isArray(data.periods) && data.periods.length) periods = migratePeriods(data.periods);
+      if (data.settings) settings = { ...Loon.DEFAULT_SETTINGS, ...data.settings };
+      if (data.holidayOverrides) holidayOverrides = data.holidayOverrides;
       if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
-      save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods);
+      save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
-      renderCompanyPicker(); fillCodes(); renderRates(); render(); updatePreview();
+      renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Bedrijf', 'Shift', 'Overuren', 'Basis', 'Overuren bedrag', 'Totaal', 'Notitie']];
+    const rows = [['Datum', 'Bedrijf', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
-      const c = calc(e);
-      rows.push([e.date, e.companyName || '', e.label, num(e.overtime),
-        num(c.base), num(c.ot), num(c.base + c.ot), e.note]);
+      const x = shiftOf(e);
+      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     download(`werkuren-${viewYear}-${pad(viewMonth + 1)}.csv`, '﻿' + csv, 'text/csv');
@@ -762,7 +989,7 @@
   // --- events -------------------------------------------------------------
   $('list').addEventListener('click', (ev) => {
     const id = ev.target.closest('.del')?.dataset.id;
-    if (!id || !confirm('Deze dag verwijderen?')) return;
+    if (!id || !confirm('Deze shift verwijderen?')) return;
     entries = entries.filter((e) => e.id !== id);
     save(KEY_ENTRIES, entries);
     render();
@@ -771,7 +998,7 @@
     const iso = ev.target.closest('button[data-date]')?.dataset.date;
     if (iso) selectDay(iso, true);
   });
-  ['code', 'ot'].forEach((id) => $(id).addEventListener('input', updatePreview));
+  ['code', 'kind', 'tariff', 'ot', 'wijziging'].forEach((id) => $(id).addEventListener('input', updatePreview));
   $('add').addEventListener('click', addEntry);
   // bij maandwissel: zelfde dagnummer selecteren (of laatste dag van de maand)
   const shiftMonth = (delta) => {
@@ -782,8 +1009,12 @@
   $('prev').addEventListener('click', () => shiftMonth(-1));
   $('next').addEventListener('click', () => shiftMonth(1));
 
+  save(KEY_ENTRIES, entries);
+  save(KEY_PERIODS, periods);
   renderCompanyPicker();
   fillCodes();
+  renderSettings();
+  renderHolidays();
   renderRates();
   selectDay(isoDate(today), false);
 })();
