@@ -101,3 +101,15 @@ test('afbestelling weekend: vergoeding plus verplaatsing', () => {
   assert.deepEqual(r.lines.map((l) => [l.key, l.amount, l.type]), [['afbestel', 115.16, 'A'], ['vervoer', 2.76, 'D']]);
   assert.equal(r.mtc, 0);
 });
+
+test('voorheffing: eigen percentage en extra bedrag', () => {
+  // augustus-loonbrief met 10% voorheffing en 5 euro extra: 236,58 x 10% = 23,66 (half-up) + 5
+  const r = Loon.calcPeriod([shift('2026-08-15', '08')], ctx({ withholdingMode: 'percentage', withholdingPct: 10, extraWithholding: 5 }));
+  assert.equal(r.voorheffing, 28.66);
+  assert.equal(r.netto, 211.18);
+  assert.equal(r.estimate, false);
+  // met percentage wordt de voorheffing ook berekend bij personen ten laste
+  const k = Loon.calcPeriod([shift('2026-08-15', '08')], ctx({ withholdingMode: 'percentage', withholdingPct: 10, kids: 2 }));
+  assert.equal(k.withholdingCalculated, true);
+  assert.equal(k.voorheffing, 23.66);
+});

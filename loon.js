@@ -105,7 +105,9 @@
     bikeKm: 0, bikeRate: 0,     // fiets: km per shift x bedrag per km
     civil: 'ongehuwd',          // 'ongehuwd' | 'gehuwd' | 'wettelijk-samenwonend' | 'gescheiden' | 'weduwe'
     spouseDependent: false, kids: 0, others: 0,
-    extraWithholding: 0,        // extra vrijwillige voorheffing per periode
+    withholdingMode: 'schatting', // 'schatting' | 'percentage' (percentage gevraagd aan Cewez)
+    withholdingPct: 0,          // % van het belastbaar bedrag bij 'percentage'
+    extraWithholding: 0,        // extra vrijwillige voorheffing per periode (vast bedrag)
     werkbonus: 0, specialContribution: 0,
     advance: 0, garnishment: 0, voluntary: 0, groupInsurance: 0,
     extraType: 'A',             // type van wijzigings- en afbestelvergoeding (nog te bevestigen)
@@ -275,7 +277,10 @@
     const rsz = round2(basisRsz * p.rszFactor * p.rszRate);
     const werkbonus = round2(Number(s.werkbonus) || 0);
     const belastbaar = round2(A + C - rsz + werkbonus);
-    const vh = estimateWithholding(belastbaar, s, period.start);
+    // voorheffing: eigen percentage (afgesproken met Cewez) of de schatting, plus een vast extra bedrag
+    const vh = s.withholdingMode === 'percentage'
+      ? { amount: round2(Math.max(0, belastbaar) * (Number(s.withholdingPct) || 0) / 100), calculated: true, exact: true }
+      : estimateWithholding(belastbaar, s, period.start);
     const voorheffing = round2(vh.amount + (Number(s.extraWithholding) || 0));
     const special = round2(Number(s.specialContribution) || 0);
     const groupInsurance = round2(Number(s.groupInsurance) || 0);
@@ -290,7 +295,7 @@
       period, payment: paymentDate(period, ctx.holidays), shifts, lines: all,
       A, B, C, D, M, bruto: brutoTotal,
       basisRsz, rsz, werkbonus, belastbaar,
-      voorheffing, withholdingCalculated: vh.calculated, estimate: vh.calculated && voorheffing > 0,
+      voorheffing, withholdingCalculated: vh.calculated, estimate: vh.calculated && !vh.exact && voorheffing > 0,
       special, groupInsurance, otherDeductions, mtc: M, netto, betaald: netto,
     };
   }

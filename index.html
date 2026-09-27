@@ -303,8 +303,17 @@
         <div><label for="sKids">Kinderen ten laste</label><input id="sKids" data-s="kids" data-t="num" inputmode="numeric"></div>
         <div><label for="sOthers">Anderen ten laste</label><input id="sOthers" data-s="others" data-t="num" inputmode="numeric"></div>
       </div>
-      <label for="sExtraWh">Extra vrijwillige voorheffing per uitbetaling</label>
-      <input id="sExtraWh" data-s="extraWithholding" data-t="num" inputmode="decimal">
+      <label for="sWhMode">Voorheffing (belastingen)</label>
+      <select id="sWhMode" data-s="withholdingMode">
+        <option value="schatting">Schatting door de app</option>
+        <option value="percentage">Eigen percentage (gevraagd aan Cewez)</option>
+      </select>
+      <div id="pctWrap">
+        <label for="sWhPct">Percentage van het belastbaar bedrag</label>
+        <input id="sWhPct" data-s="withholdingPct" data-t="num" inputmode="decimal" placeholder="bv. 25">
+      </div>
+      <label for="sExtraWh">Extra bedrag afhouden per uitbetaling</label>
+      <input id="sExtraWh" data-s="extraWithholding" data-t="num" inputmode="decimal" placeholder="0">
 
       <details>
         <summary>Meer (nog niet gekende bedragen)</summary>
@@ -841,6 +850,7 @@
     }
     $('placeWrap').hidden = settings.transport !== 'auto';
     $('bikeWrap').hidden = settings.transport !== 'fiets';
+    $('pctWrap').hidden = settings.withholdingMode !== 'percentage';
   }
   $('settingsBox').addEventListener('change', (ev) => {
     const el = ev.target.closest('[data-s]');
@@ -849,7 +859,9 @@
     if (el.dataset.t === 'bool') v = el.checked;
     else if (el.dataset.t === 'num') {
       v = v.trim() ? Number(v.replace(',', '.')) : 0;
-      if (!Number.isFinite(v) || v < 0) { renderSettings(); return alert('Vul een geldig bedrag of aantal in.'); }
+      if (!Number.isFinite(v) || v < 0 || (el.dataset.s === 'withholdingPct' && v > 100)) {
+        renderSettings(); return alert('Vul een geldig bedrag, aantal of percentage in.');
+      }
     }
     settings[el.dataset.s] = v;
     save(KEY_SETTINGS, settings);
