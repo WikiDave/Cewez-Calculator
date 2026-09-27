@@ -392,7 +392,31 @@
   </section>
 </main>
 
-<script src="loon.js"></script>
+<script src="loon.js?v=2026-09-27.1"></script>
+<script>
+// Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
+// (een test controleert dat ze gelijk zijn).
+const APP_VERSION = '2026-09-27.1';
+(() => {
+  // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
+  // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
+  async function checkForUpdate() {
+    try {
+      const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const { version } = await res.json();
+      if (!version || version === APP_VERSION) return;
+      // maar één keer per versie proberen, zodat een hardnekkige cache geen herlaad-lus geeft
+      const key = 'haven-werkuren.reloadedFor';
+      if (sessionStorage.getItem(key) === version) return;
+      sessionStorage.setItem(key, version);
+      location.replace(`${location.pathname}?v=${encodeURIComponent(version)}`);
+    } catch { /* offline of geen version.json: gewoon verder met deze versie */ }
+  }
+  checkForUpdate();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+})();
+</script>
 <script>
 (() => {
   const DEFAULT_COMPANIES = [

@@ -113,3 +113,14 @@ test('voorheffing: eigen percentage en extra bedrag', () => {
   assert.equal(k.withholdingCalculated, true);
   assert.equal(k.voorheffing, 23.66);
 });
+
+test('versienummer van de app en version.json zijn gelijk', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const appVersion = html.match(/const APP_VERSION = '([^']+)'/)[1];
+  const { version } = JSON.parse(fs.readFileSync(path.join(root, 'version.json'), 'utf8'));
+  assert.equal(appVersion, version);
+  assert.equal(html.match(/<script src="loon\.js\?v=([^"]+)">/)[1], version);
+});
