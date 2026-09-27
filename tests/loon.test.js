@@ -95,3 +95,9 @@ test('geschat netto per shift verdeelt het periodenetto naar bruto', () => {
   assert.ok(Math.abs(total - r.netto) <= 0.01);
   assert.ok(r.shifts[1].netto > r.shifts[0].netto);
 });
+
+test('afbestelling weekend: vergoeding plus verplaatsing', () => {
+  const r = Loon.calcPeriod([shift('2026-09-19', '08', { kind: 'afbestel' })], ctx());
+  assert.deepEqual(r.lines.map((l) => [l.key, l.amount, l.type]), [['afbestel', 115.16, 'A'], ['vervoer', 2.76, 'D']]);
+  assert.equal(r.mtc, 0);
+});

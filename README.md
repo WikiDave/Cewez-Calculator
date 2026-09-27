@@ -28,3 +28,4 @@ node --test
 - Fietsvergoeding per km.
 - Of wijzigings- en afbestelvergoeding onder RSZ vallen (instelbaar).
 - Halve shift: nu gerekend als de helft van het shiftloon.
+- Overuren: nu exact per minuut gerekend (afronding nog te bevestigen).

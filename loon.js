@@ -190,7 +190,9 @@
     const add = (key, label, amount, type) => { if (amount) lines.push({ key, label, amount: round2(amount), type }); };
 
     if (kind === 'afbestel') {
+      // afbestelling: vergoeding plus verplaatsing (je bent tot aan de haven gekomen)
       add('afbestel', 'Afbestelvergoeding weekend', p.afbestelWeekend, s.extraType);
+      add('vervoer', s.transport === 'fiets' ? 'Fietsvergoeding' : 'Eigen vervoer', travelAllowance(entry.date, s), 'D');
       return { row: null, lines };
     }
 
