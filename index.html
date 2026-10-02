@@ -581,11 +581,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.10"></script>
+<script src="loon.js?v=2026-10-02.11"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.10';
+const APP_VERSION = '2026-10-02.11';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -685,7 +685,6 @@ const APP_VERSION = '2026-10-02.10';
   const KEY_MODE = 'haven-werkuren.showMode';
   const KEY_LAST_WORK = 'haven-werkuren.lastWork';
   const KEY_LAST_FUNC = 'haven-werkuren.lastFunction';
-  const KEY_WELCOME = 'haven-werkuren.welcomeSeen';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
@@ -1388,7 +1387,6 @@ const APP_VERSION = '2026-10-02.10';
     if (typeof $('welcome').showModal === 'function') $('welcome').showModal();
     else $('welcome').setAttribute('open', '');
   }
-  $('welcome').addEventListener('close', () => save(KEY_WELCOME, true));
   $('helpBtn').addEventListener('click', openWelcome);
   // klikken naast het venster sluit het ook
   $('welcome').addEventListener('click', (ev) => { if (ev.target === $('welcome')) $('welcome').close(); });
@@ -1675,7 +1673,8 @@ const APP_VERSION = '2026-10-02.10';
   renderHolidays();
   renderRates();
   selectDay(isoDate(today), false);
-  if (!load(KEY_WELCOME, false) && !standalone) openWelcome();
+  // uitleg bij elke start van de app
+  openWelcome();
 })();
 </script>
 </body>
