@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f3d5e">
 <title>Haven Werkuren</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
   :root {
     --bg: #f3f5f8; --card: #ffffff; --text: #16202b; --muted: #637083;
@@ -69,6 +70,24 @@
   .li-main { flex: 1; min-width: 0; }
   .li-main .d { font-weight: 600; }
   .li-main .m { font-size: 13px; color: var(--muted); }
+  .where { font-size: 14px; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+  .where a, .li-main a { color: var(--accent); font-weight: 600; }
+  #coList li { align-items: flex-start; }
+  #coList input { min-height: 38px; padding: 6px 10px; margin-top: 6px; font-size: 14px; }
+  .mapbox { margin-top: 10px; }
+  .mapbox summary { font-weight: 600; color: var(--accent); }
+  #map { height: 320px; border-radius: 10px; margin-top: 8px; border: 1px solid var(--line); z-index: 0; }
+  a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+  /* plaats: naam en adres onder elkaar, verwijderknop rechts */
+  .locrow {
+    display: grid; grid-template-columns: 1fr 36px; gap: 4px 6px; align-items: center;
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+  }
+  .locrow input { margin-top: 0 !important; grid-column: 1; }
+  .locrow input[data-field="name"] { font-weight: 600; }
+  .locrow .del { grid-column: 2; grid-row: 1 / span 2; }
+  .linkbtn { border: 0; background: transparent; color: var(--accent); font-weight: 600; padding: 8px 0; cursor: pointer; }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -76,6 +95,20 @@
   }
   .empty { color: var(--muted); text-align: center; padding: 16px 0 4px; }
   details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  /* inklapbare kaarten: titel met pijltje rechts */
+  details.fold > summary {
+    list-style: none; display: flex; align-items: center; gap: 8px; min-height: 28px;
+  }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary h2 { flex: 1; margin: 0; }
+  details.fold > summary::after {
+    content: ""; width: 9px; height: 9px; flex: none; margin-right: 4px;
+    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg) translateY(-3px); transition: transform .15s;
+  }
+  details.fold[open] > summary::after { transform: rotate(-135deg) translateY(-3px); }
+  details.fold[open] > summary { margin-bottom: 12px; }
+  @media (prefers-reduced-motion: reduce) { details.fold > summary::after { transition: none; } }
   .ptabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .ptabs button {
     border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px;
@@ -195,7 +228,8 @@
   </section>
 
   <section class="card" id="dayCard">
-    <h2 id="dayTitle"></h2>
+    <details class="fold" data-fold="dag" open>
+      <summary><h2 id="dayTitle"></h2></summary>
     <p class="hint" id="dayNote" hidden></p>
     <ul class="list" id="list"></ul>
     <input type="hidden" id="date">
@@ -212,6 +246,20 @@
         <button class="btn" id="coSave" type="button">Bedrijf toevoegen</button>
       </div>
     </div>
+    <div id="locWrap" hidden>
+      <label for="loc">Plaats / terminal</label>
+      <select id="loc"></select>
+    </div>
+    <p class="where" id="coWhere" hidden></p>
+    <details class="mapbox" id="mapBox" hidden>
+      <summary>Kaai op de kaart</summary>
+      <p class="hint" id="mapHint"></p>
+      <div id="map" role="application" aria-label="Kaart van de haven"></div>
+      <div class="tools">
+        <button class="btn ghost" id="pinClear" type="button">Spelt wissen</button>
+        <a class="btn" id="pinRoute" target="_blank" rel="noopener">Route naar spelt</a>
+      </div>
+    </details>
 
     <label for="kind">Soort</label>
     <select id="kind">
@@ -221,6 +269,11 @@
     </select>
 
     <div id="workFields">
+      <label for="work">Soort werk</label>
+      <select id="work">
+        <option value="other">Gewoon werk (1 kledijpunt)</option>
+        <option value="lashing">Lashing roro, container, high &amp; heavy (2 kledijpunten)</option>
+      </select>
       <div class="row2">
         <div>
           <label for="code">Start</label>
@@ -238,6 +291,9 @@
       </div>
       <p class="hint" id="tariffHint"></p>
 
+      <label for="kaai">Kaai</label>
+      <input id="kaai" placeholder="bv. 106">
+
       <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
       <input id="ot" inputmode="decimal" placeholder="0">
 
@@ -245,14 +301,16 @@
     </div>
 
     <label for="note">Notitie (optioneel)</label>
-    <input id="note" placeholder="bv. schip, kaai…">
+    <input id="note" placeholder="bv. schip…">
 
     <div class="preview"><span>Deze shift bruto<br><span class="net" id="previewNet"></span></span><b id="preview">€ 0,00</b></div>
     <button class="btn" id="add">Opslaan</button>
+    </details>
   </section>
 
-  <section class="card">
-    <h2 id="sumTitle"></h2>
+  <section class="card" id="sumCard">
+    <details class="fold" data-fold="overzicht" open>
+      <summary><h2 id="sumTitle"></h2></summary>
     <div class="totals">
       <div class="stat big"><div class="k">Bruto deze maand</div><div class="v" id="tTotal"></div></div>
       <div class="stat big"><div class="k">Netto deze maand <span class="est" id="tNetEst" hidden>schatting</span></div><div class="v" id="tNet"></div></div>
@@ -261,16 +319,47 @@
     </div>
     <ul class="list" id="perCo"></ul>
     <p class="hint" id="yearLine"></p>
+    </details>
   </section>
 
-  <section class="card">
-    <h2>Uitbetalingen</h2>
+  <section class="card" id="slipCard">
+    <details class="fold" data-fold="uitbetalingen" open>
+      <summary><h2>Uitbetalingen</h2></summary>
     <div id="slips"></div>
+    </details>
+  </section>
+
+  <section class="card" id="clothCard">
+    <details class="fold" data-fold="kledij" open>
+      <summary><h2>Kledijpunten</h2></summary>
+    <div class="totals">
+      <div class="stat big"><div class="k">Saldo <span id="clMax"></span></div><div class="v" id="clBalance"></div></div>
+    </div>
+    <p class="hint" id="clInfo"></p>
+    <p class="warn" id="clWarn" hidden></p>
+
+    <label for="clItem">Kledij afhalen</label>
+    <select id="clItem"></select>
+    <label for="clDate">Datum</label>
+    <input type="date" id="clDate">
+    <label class="check"><input type="checkbox" id="clFree"> Gratis vervangen (arbeidsongeval, fabricagefout, handschoenen binnengebracht)</label>
+    <button class="btn" id="clAdd">Afhalen</button>
+    <ul class="list" id="clList"></ul>
+
+    <details id="clStartBox">
+      <summary>Saldo van je loonbrief</summary>
+      <p class="hint">Vul het kledijsaldo van je laatste loonbrief in, met de datum waarop het geldt. Shiften en afgehaalde kledij tot en met die datum zitten daar al in.</p>
+      <div class="row2">
+        <div><label for="clStartPts">Punten</label><input id="clStartPts" inputmode="numeric" placeholder="0"></div>
+        <div><label for="clStartDate">Op datum</label><input type="date" id="clStartDate"></div>
+      </div>
+    </details>
+    </details>
   </section>
 
   <section class="card">
-    <details id="settingsBox">
-      <summary>Netto-instellingen</summary>
+    <details class="fold" data-fold="netto" id="settingsBox">
+      <summary><h2>Netto-instellingen</h2></summary>
       <p class="hint">Hiermee rekent de app je netto uit. Je gegevens blijven op dit toestel.</p>
       <label for="sStatus">Statuut</label>
       <select id="sStatus" data-s="status">
@@ -336,8 +425,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Feestdagen</summary>
+    <details class="fold" data-fold="feestdagen">
+      <summary><h2>Feestdagen</h2></summary>
       <p class="hint">Op de dag waarop de haven een feestdag viert, geldt het zon- en feestdagtarief. Valt een feestdag in het weekend, vul dan de vervangingsdag in.</p>
       <div class="yearbar">
         <button id="holPrev" aria-label="Vorig jaar">‹</button>
@@ -349,17 +438,17 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Bedrijven beheren</summary>
-      <p class="hint">Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
+    <details class="fold" data-fold="bedrijven">
+      <summary><h2>Bedrijven beheren</h2></summary>
+      <p class="hint">Per bedrijf staan de plaatsen (kantoor, terminal, kaai) met hun adres. Pas ze aan of voeg er toe; bij een dag kies je de plaats en zet je op de kaart een spelt per plaats. Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
       <ul class="list" id="coList"></ul>
       <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
     </details>
   </section>
 
   <section class="card">
-    <details>
-      <summary>Tarieven</summary>
+    <details class="fold" data-fold="tarieven">
+      <summary><h2>Tarieven</h2></summary>
       <p class="hint">Elke dag wordt berekend met de tarieven die op die datum golden. Pas je een datum of bedrag aan, dan worden alle dagen opnieuw berekend.</p>
       <div class="ptabs" id="periodTabs"></div>
       <div id="periodFromWrap">
@@ -379,8 +468,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Back-up &amp; export</summary>
+    <details class="fold" data-fold="backup">
+      <summary><h2>Back-up &amp; export</h2></summary>
       <p class="hint">Je gegevens staan alleen op dit toestel, in deze browser. Maak af en toe een back-up.</p>
       <div class="tools">
         <button class="btn ghost" id="exportJson">Back-up downloaden</button>
@@ -392,11 +481,12 @@
   </section>
 </main>
 
-<script src="loon.js?v=2026-09-27.1"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="loon.js?v=2026-10-02.6"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-09-27.1';
+const APP_VERSION = '2026-10-02.6';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -443,6 +533,45 @@ const APP_VERSION = '2026-09-27.1';
     ['ecs', 'ECS 2XL', 'ECS 2XL'],
     ['hoppe', 'Hoppe', 'Hoppe'],
   ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
+  // Plaatsen per bedrijf: [id, naam, adres]. Adressen uit de Codex (bijlage 12) en de sites van de
+  // terminals; aanpasbaar in "Bedrijven beheren". Zet per plaats een spelt voor de juiste kaai.
+  const DEFAULT_LOCATIONS = Object.fromEntries(Object.entries({
+    'sea-invest': [['bnfw', 'Belgian New Fruit Wharf (kaai 404)', 'Kiwiweg 120, 8380 Zeebrugge']],
+    'van-der-vlist': [['zetel', 'Van der Vlist Belgium', 'Koggenstraat 15, 8380 Zeebrugge']],
+    verhelst: [['zetel', 'Verhelst Port Operators', 'Stationstraat 30, 8460 Oudenburg']],
+    zfl: [['zetel', 'Zeebrugge Food Logistics', 'Noordzeestraat 201, 8380 Zeebrugge']],
+    intertrans: [['zetel', 'Intertrans', 'Loodswezenstraat 1, 8380 Zeebrugge']],
+    logghe: [['zetel', 'Logghe-Ve.co', 'Oudenburgsesteenweg 87, 8400 Oostende']],
+    minne: [
+      ['exploitatie', 'Exploitatie', 'Krakeleweg 40, 8000 Brugge'],
+      ['zetel', 'Zetel', 'Sint-Hubertuslaan 49, 8200 Brugge'],
+    ],
+    ndq: [['zetel', 'NDQ', 'Koffieweg 2, 8380 Zeebrugge']],
+    ossco: [['zetel', 'OSSCO', 'Slijkensesteenweg 2, 8400 Oostende']],
+    'po-ferries': [['zetel', 'P&O North Sea Ferries', 'Leopold II-dam 13, 8380 Zeebrugge']],
+    psa: [['zip', 'ZIP-terminal (kaai 140–143)', 'Caxtonweg, Kaai 140-143, 8380 Zeebrugge']],
+    sst: [['zetel', 'Seaport Shipping & Trading', 'Britse Kaai 10, 8000 Brugge']],
+    seabridge: [['zetel', 'Seabridge', 'Koffieweg 10, 8380 Zeebrugge']],
+    wwl: [['k530', 'Terminal kaai 530', 'Alfred Ronsestraat 100, 8380 Zeebrugge']],
+    ico: [
+      ['noord', 'Noordelijke Insteek (kaai 405–410)', 'Noordelijke Insteek, 8380 Zeebrugge'],
+      ['zuid', 'Zuidelijke Insteek (kaai 501–525)', 'Zuidelijke Insteek, 8380 Zeebrugge'],
+      ['kantoor', 'Kantoor', 'Margaretha van Oostenrijkstraat 1, 8380 Zeebrugge'],
+    ],
+    cldn: [
+      ['kantoor', 'Kantoor', 'Hendrik van Minderhoutstraat 50, 8380 Zeebrugge'],
+      ['canadakaai', 'Canadakaai', 'Canadakaai, 8380 Zeebrugge'],
+      ['britannia', 'Britannia-dok', 'Britannia-dok, 8380 Zeebrugge'],
+      ['zweedse', 'Zweedse Kaai', 'Zweedse Kaai, 8380 Zeebrugge'],
+      ['albert2', 'Albert II-dok', 'Albert II-dok, 8380 Zeebrugge'],
+    ],
+    borlix: [['zetel', 'Borlix', 'Lanceloot Blondeellaan 15, 8380 Zeebrugge']],
+    cosco: [['k120', 'CSP-terminal (kaai 120)', 'Leopold II-dam, Kaai 120, 8380 Zeebrugge']],
+    depre: [['zetel', 'Depre Storage & Handling', 'Britse Kaai 8, 8000 Brugge']],
+    'dp-world': [['codex', 'Volgens Codex (Antwerpen, nakijken)', 'Molenweg-haven 1950, 9130 Kallo']],
+    ecs: [['zetel', '2XL - ECS', 'Baron de Maerelaan 155, 8380 Zeebrugge']],
+    hoppe: [['zetel', 'Hoppe Ship Agencies', 'Leopold II-dam 35, 8380 Zeebrugge']],
+  }).map(([co, list]) => [co, list.map(([id, name, address]) => ({ id, name, address }))]));
   const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
   const ROW_NAMES = { ZA: 'zaterdagtarief', ZO: 'zon- en feestdagtarief' };
 
@@ -455,6 +584,14 @@ const APP_VERSION = '2026-09-27.1';
   const KEY_SETTINGS = 'haven-werkuren.settings';
   const KEY_HOLIDAYS = 'haven-werkuren.holidays';
   const KEY_MODE = 'haven-werkuren.showMode';
+  const KEY_LAST_WORK = 'haven-werkuren.lastWork';
+  const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
+  const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
+  const KEY_FOLDS = 'haven-werkuren.folds';
+  const KEY_CO_ADDR = 'haven-werkuren.companyAddresses'; // oud: één adres per bedrijf
+  const KEY_CO_LOCS = 'haven-werkuren.companyLocations';
+  const KEY_LAST_LOC = 'haven-werkuren.lastLocation';
+  const KEY_CO_PIN = 'haven-werkuren.companyPins';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -481,6 +618,29 @@ const APP_VERSION = '2026-09-27.1';
   let settings = { ...Loon.DEFAULT_SETTINGS, ...load(KEY_SETTINGS, {}) };
   let holidayOverrides = load(KEY_HOLIDAYS, {});
   let showMode = load(KEY_MODE, 'bruto');
+  let purchases = load(KEY_PURCHASES, []);
+  let clothingStart = load(KEY_CLOTH_START, { date: '', points: 0 });
+  let companyLocations = load(KEY_CO_LOCS, {}); // door jou aangepaste plaatsen per bedrijf
+  let companyPins = load(KEY_CO_PIN, {});         // spelden per plaats: "bedrijf/plaats"
+  let lastLocation = load(KEY_LAST_LOC, {});      // laatst gekozen plaats per bedrijf
+  // oudere gegevens: één adres en één spelt per bedrijf omzetten naar de eerste plaats
+  (() => {
+    const old = load(KEY_CO_ADDR, null);
+    for (const [co, address] of Object.entries(old || {})) {
+      if (co in companyLocations) continue;
+      const list = structuredClone(DEFAULT_LOCATIONS[co] || []);
+      if (list.length) list[0].address = address;
+      else if (address) list.push({ id: 'adres', name: 'Adres', address });
+      companyLocations[co] = list;
+    }
+    for (const key of Object.keys(companyPins)) {
+      if (key.includes('/')) continue;
+      const first = (companyLocations[key] || DEFAULT_LOCATIONS[key] || [])[0];
+      companyPins[`${key}/${first ? first.id : 'main'}`] = companyPins[key];
+      delete companyPins[key];
+    }
+    if (old) { save(KEY_CO_LOCS, companyLocations); save(KEY_CO_PIN, companyPins); try { localStorage.removeItem(KEY_CO_ADDR); } catch {} }
+  })();
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -552,6 +712,24 @@ const APP_VERSION = '2026-09-27.1';
     return `<span class="logo ${cls}" title="${escapeHtml(n)}">${escapeHtml(initials(n))}</span>`;
   }
 
+  const locationsOf = (co) => companyLocations[co] || DEFAULT_LOCATIONS[co] || [];
+  const locationOf = (co, loc) => locationsOf(co).find((l) => l.id === loc);
+  // gekozen plaats van het gekozen bedrijf (de laatst gebruikte, anders de eerste)
+  const currentLoc = () => (locationOf(companyId, lastLocation[companyId]) || locationsOf(companyId)[0])?.id || 'main';
+  const placeKey = (co, loc) => `${co}/${loc || 'main'}`;
+  // route naar de spelt als die gezet is, anders naar het adres
+  function routeUrl(co, loc) {
+    const pin = companyPins[placeKey(co, loc)];
+    if (pin) return `https://www.google.com/maps/dir/?api=1&destination=${pin.lat},${pin.lng}`;
+    const addr = locationOf(co, loc)?.address;
+    return addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
+  }
+  const routeLink = (co, loc) => (routeUrl(co, loc) ? `<a href="${routeUrl(co, loc)}" target="_blank" rel="noopener">Route</a>` : '');
+  function saveLocations(co, list) {
+    companyLocations[co] = list;
+    save(KEY_CO_LOCS, companyLocations);
+  }
+
   function renderCompanyPicker() {
     if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
     // meest gebruikte bedrijven eerst
@@ -572,9 +750,31 @@ const APP_VERSION = '2026-09-27.1';
         ${logoHtml(c.id)}<span>${escapeHtml(c.short || c.name)}</span></button>`).join('')
       + toggle + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
 
+    const sel = companyById(companyId);
+    const locs = sel ? locationsOf(companyId) : [];
+    const loc = currentLoc();
+    $('locWrap').hidden = locs.length < 2;
+    $('loc').innerHTML = locs.map((l) => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.name)}</option>`).join('');
+    if (locs.length) $('loc').value = loc;
+    const place = locationOf(companyId, loc);
+    const pinned = !!companyPins[placeKey(companyId, loc)];
+    $('coWhere').hidden = !sel;
+    $('coWhere').innerHTML = !sel ? ''
+      : place?.address || pinned
+        ? `${escapeHtml(place?.name || sel.name)}: ${escapeHtml(place?.address || 'eigen spelt op de kaart')}${pinned && place?.address ? ' · spelt gezet' : ''} · ${routeLink(companyId, loc)}`
+        : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren, of zet een spelt op de kaart.`;
+    $('mapBox').hidden = !sel;
+    updateMap();
+
     $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
-        <div class="li-main"><div class="d">${escapeHtml(c.name)}</div></div>
-        <button class="del" data-delco="${c.id}" aria-label="Verwijderen">✕</button></li>`).join('')
+        <div class="li-main"><div class="d">${escapeHtml(c.name)}</div>
+          ${locationsOf(c.id).map((l) => `<div class="locrow">
+            <input data-co="${c.id}" data-loc="${escapeHtml(l.id)}" data-field="name" value="${escapeHtml(l.name)}" placeholder="Naam (bv. kaai of terminal)" aria-label="Naam plaats">
+            <input data-co="${c.id}" data-loc="${escapeHtml(l.id)}" data-field="address" value="${escapeHtml(l.address)}" placeholder="Adres" aria-label="Adres plaats">
+            <button type="button" class="del" data-delloc="${escapeHtml(l.id)}" data-co="${c.id}" aria-label="Plaats verwijderen">✕</button>
+          </div>`).join('')}
+          <button type="button" class="linkbtn" data-addloc="${c.id}">+ Plaats toevoegen</button></div>
+        <button class="del" data-delco="${c.id}" aria-label="Bedrijf verwijderen">✕</button></li>`).join('')
       : '<li class="empty">Geen bedrijven.</li>');
     $('coRestore').hidden = !hiddenCompanies.length;
   }
@@ -628,9 +828,124 @@ const APP_VERSION = '2026-09-27.1';
     save(KEY_HIDDEN_CO, hiddenCompanies);
     renderCompanyPicker();
   });
+  $('coList').addEventListener('change', (ev) => {
+    const el = ev.target.closest('[data-field]');
+    if (!el) return;
+    const co = el.dataset.co;
+    const list = structuredClone(locationsOf(co));
+    const l = list.find((x) => x.id === el.dataset.loc);
+    if (!l) return;
+    l[el.dataset.field] = el.value.trim();
+    saveLocations(co, list);
+    renderCompanyPicker(); render();
+  });
+  $('coList').addEventListener('click', (ev) => {
+    const add = ev.target.closest('[data-addloc]');
+    const del = ev.target.closest('[data-delloc]');
+    if (add) {
+      const co = add.dataset.addloc;
+      saveLocations(co, [...structuredClone(locationsOf(co)), { id: 'p' + Date.now().toString(36), name: '', address: '' }]);
+      renderCompanyPicker();
+      const inputs = $('coList').querySelectorAll(`[data-co="${co}"][data-field="name"]`);
+      inputs[inputs.length - 1]?.focus();
+    } else if (del) {
+      const co = del.dataset.co, loc = del.dataset.delloc;
+      const l = locationOf(co, loc);
+      if (!confirm(`Plaats "${l?.name || 'zonder naam'}" verwijderen?`)) return;
+      saveLocations(co, locationsOf(co).filter((x) => x.id !== loc));
+      delete companyPins[placeKey(co, loc)];
+      save(KEY_CO_PIN, companyPins);
+      renderCompanyPicker(); render();
+    }
+  });
   $('coRestore').addEventListener('click', () => {
     hiddenCompanies = [];
     save(KEY_HIDDEN_CO, hiddenCompanies);
+    renderCompanyPicker();
+  });
+
+  // --- kaai op de kaart (Leaflet) ------------------------------------------
+  const PORT_CENTER = [51.335, 3.205]; // haven van Zeebrugge
+  // vaste paden voor de spelt (Leaflet raadt ze anders af uit de css, wat niet overal lukt)
+  const PIN_ICONS = {
+    icon: 'vendor/leaflet/images/marker-icon.png',
+    retina: 'vendor/leaflet/images/marker-icon-2x.png',
+    shadow: 'vendor/leaflet/images/marker-shadow.png',
+  };
+  let tilesFailed = false;
+  let map = null, marker = null, mapPlace = null;
+  function ensureMap() {
+    if (map || !window.L) return !!map;
+    map = L.map('map', { zoomControl: true }).setView(PORT_CENTER, 13);
+    const streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap',
+    });
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics',
+    });
+    for (const layer of [streets, satellite]) {
+      layer.on('tileerror', () => {
+        if (tilesFailed) return;
+        tilesFailed = true;
+        $('mapHint').textContent = 'De kaartbeelden konden niet geladen worden. Controleer je internetverbinding. Een spelt zetten lukt wel.';
+      });
+    }
+    satellite.addTo(map);
+    L.control.layers({ Satelliet: satellite, Kaart: streets }, null, { position: 'topright' }).addTo(map);
+    map.on('click', (ev) => setPin(ev.latlng));
+    return true;
+  }
+  function setPin(latlng) {
+    if (!companyId) return;
+    companyPins[placeKey(companyId, currentLoc())] = { lat: Number(latlng.lat.toFixed(6)), lng: Number(latlng.lng.toFixed(6)) };
+    save(KEY_CO_PIN, companyPins);
+    renderCompanyPicker(); render();
+  }
+  function updateMap() {
+    const sel = companyById(companyId);
+    const loc = currentLoc();
+    const key = placeKey(companyId, loc);
+    const pin = companyPins[key];
+    const where = locationOf(companyId, loc)?.name || sel?.name || '';
+    if (!tilesFailed) $('mapHint').textContent = !sel ? ''
+      : pin ? `Sleep de spelt om de plaats van ${where} te verbeteren.`
+      : `Tik op de kaart waar je moet zijn (${where}). Daarna kun je de spelt verslepen.`;
+    $('pinRoute').href = routeUrl(companyId, loc) || '#';
+    $('pinRoute').setAttribute('aria-disabled', String(!pin));
+    $('pinClear').disabled = !pin;
+    if (!$('mapBox').open || !ensureMap()) return;
+    map.invalidateSize();
+    if (pin) {
+      if (!marker) {
+        const icon = L.icon({
+          iconUrl: PIN_ICONS.icon, iconRetinaUrl: PIN_ICONS.retina, shadowUrl: PIN_ICONS.shadow,
+          iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41],
+        });
+        marker = L.marker([pin.lat, pin.lng], { draggable: true, icon }).addTo(map);
+        marker.on('dragend', () => setPin(marker.getLatLng()));
+      } else marker.setLatLng([pin.lat, pin.lng]);
+    } else if (marker) { marker.remove(); marker = null; }
+    // alleen opnieuw centreren als je van bedrijf of plaats wisselt
+    if (mapPlace !== key) {
+      map.setView(pin ? [pin.lat, pin.lng] : PORT_CENTER, pin ? 17 : 13);
+      mapPlace = key;
+    }
+  }
+  $('mapBox').addEventListener('toggle', () => {
+    if ($('mapBox').open && !window.L) $('mapHint').textContent = 'De kaart kon niet geladen worden. Ben je offline?';
+    mapPlace = null;
+    updateMap();
+  });
+  $('pinClear').addEventListener('click', () => {
+    if (!companyId || !confirm('Spelt voor deze plaats wissen?')) return;
+    delete companyPins[placeKey(companyId, currentLoc())];
+    save(KEY_CO_PIN, companyPins);
+    renderCompanyPicker(); render();
+  });
+
+  $('loc').addEventListener('change', () => {
+    lastLocation[companyId] = $('loc').value;
+    save(KEY_LAST_LOC, lastLocation);
     renderCompanyPicker();
   });
 
@@ -643,9 +958,10 @@ const APP_VERSION = '2026-09-27.1';
   function readForm() {
     return {
       id: '__preview',
-      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value,
+      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value,
       wijziging: $('wijziging').checked,
-      company: companyId, companyName: companyById(companyId)?.name || '',
+      company: companyId, companyName: companyById(companyId)?.name || '', kaai: $('kaai').value.trim(),
+      loc: companyId ? currentLoc() : '', locName: (companyId && locationsOf(companyId).length > 1 && locationOf(companyId, currentLoc())?.name) || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
     };
   }
@@ -674,7 +990,8 @@ const APP_VERSION = '2026-09-27.1';
     if (e.kind === 'afbestel') { e.overtime = 0; e.wijziging = false; }
     entries.push(e);
     save(KEY_ENTRIES, entries);
-    $('ot').value = ''; $('note').value = ''; $('wijziging').checked = false;
+    save(KEY_LAST_WORK, e.work);
+    $('ot').value = ''; $('note').value = ''; $('kaai').value = ''; $('wijziging').checked = false;
     $('kind').value = 'full'; $('tariff').value = 'auto';
     renderCompanyPicker();
     render();
@@ -707,7 +1024,10 @@ const APP_VERSION = '2026-09-27.1';
     const d = new Date(iso + 'T12:00');
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
     render();
-    if (scroll) $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scroll) {
+      document.querySelector('[data-fold="dag"]').open = true;
+      $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function renderCalendar() {
@@ -755,6 +1075,10 @@ const APP_VERSION = '2026-09-27.1';
         e.overtime && e.kind !== 'afbestel' ? `<span class="ot">${fmtHours(e.overtime)} overuren (${money(ot?.amount)})</span>` : '',
         e.wijziging ? 'wijzigingsvergoeding' : '',
         `netto ± ${money(x.netto)}`,
+        clothingLabel(e),
+        e.locName ? escapeHtml(e.locName) : '',
+        e.kaai ? `kaai ${escapeHtml(e.kaai)}` : '',
+        e.company ? routeLink(e.company, e.loc) : '',
         e.note ? escapeHtml(e.note) : '',
       ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
@@ -848,6 +1172,7 @@ const APP_VERSION = '2026-09-27.1';
     $('perCo').hidden = !$('perCo').innerHTML;
 
     $('slips').innerHTML = slipHtml('A') + slipHtml('B');
+    renderClothing();
 
     renderCalendar();
     renderDay();
@@ -860,6 +1185,76 @@ const APP_VERSION = '2026-09-27.1';
     const m = ev.target.closest('[data-m]')?.dataset.m;
     if (!m) return;
     showMode = m; save(KEY_MODE, m); render();
+  });
+
+  // --- kledijpunten -------------------------------------------------------
+  const pointsText = (n) => `${n} punt${Math.abs(n) === 1 ? '' : 'en'}`;
+  function clothingLabel(e) {
+    const n = Loon.clothingPointsFor(e);
+    return n ? `+${pointsText(n)} kledij` : '';
+  }
+  const PACKS = { minimum: 'Minimumpakket', basis: 'Basispakket', aanvullend: 'Aanvullend pakket' };
+
+  function renderClothing() {
+    const l = Loon.clothingLedger(entries, purchases, clothingStart);
+    $('clBalance').textContent = pointsText(l.balance);
+    $('clBalance').classList.toggle('ot', l.balance < 0);
+    $('clMax').textContent = `(max ${l.max})`;
+    $('clInfo').textContent = clothingStart.date
+      ? `Sinds je loonbrief van ${fmtDate(clothingStart.date)}: +${l.earned} opgebouwd, −${l.spent} afgehaald.`
+      : `Opgebouwd: ${l.earned} · afgehaald: ${l.spent}. Vul onderaan het saldo van je loonbrief in, dan klopt het met Cewez.`;
+    const warn = [];
+    if (l.balance >= l.max) warn.push(`Je zit aan het maximum van ${l.max} punten: nieuwe punten gaan verloren. Haal eerst kledij af.`);
+    else if (l.lost) warn.push(`${pointsText(l.lost)} verloren omdat je saldo aan het maximum zat.`);
+    if (l.balance < 0) warn.push('Je saldo staat in min. Dat mag enkel voor één artikel uit het basispakket.');
+    $('clWarn').hidden = !warn.length;
+    $('clWarn').textContent = warn.join(' ');
+
+    const cur = $('clItem').value;
+    $('clItem').innerHTML = Object.entries(PACKS).map(([pack, title]) => `<optgroup label="${title}">${
+      Loon.CLOTHING_ITEMS.filter((i) => i.pack === pack).map((i) => {
+        const short = i.points - l.balance;
+        return `<option value="${i.id}">${escapeHtml(i.name)} · ${i.points} p${short > 0 ? ` (nog ${short} tekort)` : ''}</option>`;
+      }).join('')}</optgroup>`).join('');
+    if (cur) $('clItem').value = cur;
+
+    const list = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
+    $('clList').innerHTML = list.map((p) => `<li>
+      <div class="li-main"><div class="d">${escapeHtml(p.name)}</div>
+        <div class="m">${fmtDate(p.date)}${p.free ? ' · gratis vervangen' : ''}${clothingStart.date && p.date <= clothingStart.date ? ' · zit al in je loonbriefsaldo' : ''}</div></div>
+      <div class="li-amt">${p.free ? '0' : '−' + p.points} p</div>
+      <button class="del" data-pid="${p.id}" aria-label="Verwijderen">✕</button></li>`).join('');
+    $('clList').hidden = !list.length;
+    $('clStartPts').value = clothingStart.points || '';
+    $('clStartDate').value = clothingStart.date || '';
+  }
+
+  $('clAdd').addEventListener('click', () => {
+    const item = Loon.CLOTHING_ITEMS.find((i) => i.id === $('clItem').value);
+    const date = $('clDate').value;
+    if (!item || !date) return alert('Kies een artikel en een datum.');
+    const free = $('clFree').checked;
+    const before = Loon.clothingLedger(entries, purchases, clothingStart).balance;
+    if (!free && before - item.points < 0
+      && !confirm(`Niet genoeg punten: je saldo wordt ${before - item.points}. Toch opslaan?`)) return;
+    purchases.push({ id: 'k' + Date.now().toString(36), date, itemId: item.id, name: item.name, points: item.points, free });
+    save(KEY_PURCHASES, purchases);
+    $('clFree').checked = false;
+    renderClothing();
+  });
+  $('clList').addEventListener('click', (ev) => {
+    const id = ev.target.closest('[data-pid]')?.dataset.pid;
+    if (!id || !confirm('Deze afgehaalde kledij verwijderen?')) return;
+    purchases = purchases.filter((p) => p.id !== id);
+    save(KEY_PURCHASES, purchases);
+    renderClothing();
+  });
+  $('clStartBox').addEventListener('change', () => {
+    const pts = Number($('clStartPts').value.trim() || 0);
+    if (!Number.isFinite(pts)) { renderClothing(); return alert('Vul een geldig aantal punten in.'); }
+    clothingStart = { date: $('clStartDate').value, points: pts };
+    save(KEY_CLOTH_START, clothingStart);
+    renderClothing();
   });
 
   // --- netto-instellingen -------------------------------------------------
@@ -989,7 +1384,7 @@ const APP_VERSION = '2026-09-27.1';
   }
   $('exportJson').addEventListener('click', () => {
     download(`werkuren-backup-${isoDate(new Date())}.json`,
-      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies }, null, 2), 'application/json');
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyLocations, companyPins, lastLocation }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -1005,18 +1400,24 @@ const APP_VERSION = '2026-09-27.1';
       if (data.holidayOverrides) holidayOverrides = data.holidayOverrides;
       if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
+      if (Array.isArray(data.purchases)) purchases = data.purchases;
+      if (data.clothingStart) clothingStart = data.clothingStart;
+      if (data.companyLocations) companyLocations = data.companyLocations;
+      if (data.lastLocation) lastLocation = data.lastLocation;
+      if (data.companyPins) companyPins = data.companyPins;
       save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
+      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_LOCS, companyLocations); save(KEY_CO_PIN, companyPins); save(KEY_LAST_LOC, lastLocation);
       renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Bedrijf', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
+    const rows = [['Datum', 'Bedrijf', 'Plaats', 'Kaai', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
       const x = shiftOf(e);
-      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
+      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', e.locName || '', e.kaai || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     download(`werkuren-${viewYear}-${pad(viewMonth + 1)}.csv`, '﻿' + csv, 'text/csv');
@@ -1047,8 +1448,16 @@ const APP_VERSION = '2026-09-27.1';
 
   save(KEY_ENTRIES, entries);
   save(KEY_PERIODS, periods);
+  // welke kaarten open of dicht staan, onthouden
+  const folds = load(KEY_FOLDS, {});
+  for (const d of document.querySelectorAll('details.fold')) {
+    if (d.dataset.fold in folds) d.open = folds[d.dataset.fold];
+    d.addEventListener('toggle', () => { folds[d.dataset.fold] = d.open; save(KEY_FOLDS, folds); });
+  }
   renderCompanyPicker();
   fillCodes();
+  $('work').value = load(KEY_LAST_WORK, 'other');
+  $('clDate').value = isoDate(today);
   renderSettings();
   renderHolidays();
   renderRates();
