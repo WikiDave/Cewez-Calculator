@@ -269,6 +269,9 @@
     </select>
 
     <div id="workFields">
+      <label for="func">Functie</label>
+      <select id="func"></select>
+      <p class="hint" id="funcHint"></p>
       <label for="work">Soort werk</label>
       <select id="work">
         <option value="other">Gewoon werk (1 kledijpunt)</option>
@@ -456,7 +459,7 @@
         <input type="date" id="periodFrom">
       </div>
       <table class="rates">
-        <thead><tr><th>Start</th><th>Shift</th><th>Overuur</th></tr></thead>
+        <thead><tr><th>Start</th><th>Shift</th><th>Uur</th><th>Overuur</th></tr></thead>
         <tbody id="ratesBody"></tbody>
       </table>
       <div class="tools">
@@ -482,11 +485,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.7"></script>
+<script src="loon.js?v=2026-10-02.8"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.7';
+const APP_VERSION = '2026-10-02.8';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -585,6 +588,7 @@ const APP_VERSION = '2026-10-02.7';
   const KEY_HOLIDAYS = 'haven-werkuren.holidays';
   const KEY_MODE = 'haven-werkuren.showMode';
   const KEY_LAST_WORK = 'haven-werkuren.lastWork';
+  const KEY_LAST_FUNC = 'haven-werkuren.lastFunction';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
@@ -693,7 +697,8 @@ const APP_VERSION = '2026-10-02.7';
   function entryTitle(e) {
     if (e.kind === 'afbestel') return 'Afbestelling weekend';
     const x = calc.shifts[e.id];
-    return [startLabel(e.code), e.kind === 'half' && 'halve shift', x && ROW_NAMES[x.row]].filter(Boolean).join(' · ');
+    const fn = Loon.functionOf(e.func);
+    return [startLabel(e.code), fn.id !== 'alle' && fn.label, e.kind === 'half' && 'halve shift', x && ROW_NAMES[x.row]].filter(Boolean).join(' · ');
   }
   const shiftOf = (e) => calc.shifts[e.id] || { bruto: 0, netto: 0, lines: [] };
   const overtimeOf = (e) => (e.kind === 'afbestel' ? 0 : e.overtime || 0);
@@ -964,7 +969,7 @@ const APP_VERSION = '2026-10-02.7';
   function readForm() {
     return {
       id: '__preview',
-      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value,
+      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value, func: $('func').value,
       wijziging: $('wijziging').checked,
       company: companyId, companyName: companyById(companyId)?.name || '', kaai: $('kaai').value.trim(),
       loc: companyId ? currentLoc() : '', locName: (companyId && locationsOf(companyId).length > 1 && locationOf(companyId, currentLoc())?.name) || '',
@@ -979,6 +984,8 @@ const APP_VERSION = '2026-10-02.7';
     $('tariffHint').textContent = e.tariff === 'auto'
       ? `Automatisch: ${ROW_NAMES[auto] || 'weekdagtarief'}`
       : `Automatisch zou ${ROW_NAMES[auto] || 'weekdagtarief'} zijn.`;
+    const fn = Loon.functionOf(e.func);
+    $('funcHint').textContent = fn.group === 'alle' ? '' : Loon.FUNCTION_GROUPS[fn.group].label.replace(/^[^(]*\(/, 'Loon alle werk (').replace(/\)$/, ')');
     if (Number.isNaN(e.overtime)) { $('preview').textContent = '—'; $('previewNet').textContent = ''; return; }
     // netto van deze shift: bereken de uitbetaling opnieuw met deze shift erbij
     const key = Loon.periodOf(e.date).key;
@@ -997,6 +1004,7 @@ const APP_VERSION = '2026-10-02.7';
     entries.push(e);
     save(KEY_ENTRIES, entries);
     save(KEY_LAST_WORK, e.work);
+    save(KEY_LAST_FUNC, e.func);
     $('ot').value = ''; $('note').value = ''; $('kaai').value = ''; $('wijziging').checked = false;
     $('kind').value = 'full'; $('tariff').value = 'auto';
     renderCompanyPicker();
@@ -1332,7 +1340,7 @@ const APP_VERSION = '2026-10-02.7';
     $('periodFrom').value = pr.from;
     $('delPeriod').hidden = editPeriod === 0;
     $('ratesBody').innerHTML = Loon.RATE_ROWS.map((x) => `<tr><td>${x.label}</td>
-      ${['shift', 'overuur'].map((k) => `<td><input inputmode="decimal" data-id="${x.id}" data-k="${k}" value="${pr.values[x.id][k].toFixed(2).replace('.', ',')}"></td>`).join('')}
+      ${['shift', 'uur', 'overuur'].map((k) => `<td><input inputmode="decimal" data-id="${x.id}" data-k="${k}" value="${Loon.rateFor([pr], pr.from || '0000', x.id)[k].toFixed(2).replace('.', ',')}"></td>`).join('')}
     </tr>`).join('');
   }
   $('periodTabs').addEventListener('click', (ev) => {
@@ -1441,7 +1449,7 @@ const APP_VERSION = '2026-10-02.7';
     const iso = ev.target.closest('button[data-date]')?.dataset.date;
     if (iso) selectDay(iso, true);
   });
-  ['code', 'kind', 'tariff', 'ot', 'wijziging'].forEach((id) => $(id).addEventListener('input', updatePreview));
+  ['code', 'kind', 'tariff', 'func', 'ot', 'wijziging'].forEach((id) => $(id).addEventListener('input', updatePreview));
   $('add').addEventListener('click', addEntry);
   // bij maandwissel: zelfde dagnummer selecteren (of laatste dag van de maand)
   const shiftMonth = (delta) => {
@@ -1463,6 +1471,9 @@ const APP_VERSION = '2026-10-02.7';
   renderCompanyPicker();
   fillCodes();
   $('work').value = load(KEY_LAST_WORK, 'other');
+  $('func').innerHTML = Object.entries(Loon.FUNCTION_GROUPS).map(([g, grp]) => `<optgroup label="${grp.label}">${
+    Loon.FUNCTIONS.filter((f) => f.group === g).map((f) => `<option value="${f.id}">${f.label}</option>`).join('')}</optgroup>`).join('');
+  $('func').value = load(KEY_LAST_FUNC, 'alle');
   $('clDate').value = isoDate(today);
   renderSettings();
   renderHolidays();

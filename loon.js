@@ -33,22 +33,53 @@
   ].map(([id, label]) => ({ id, label }));
   const RATE_ROWS = [...START_HOURS, { id: 'ZA', label: 'Zaterdag' }, { id: 'ZO', label: 'Zon- en feestdag' }];
 
-  // [shift, overuur] in de volgorde van RATE_ROWS
-  const ratesFrom = (pairs) => Object.fromEntries(RATE_ROWS.map((x, i) => [x.id, { shift: pairs[i][0], overuur: pairs[i][1] }]));
+  // [shift, uur, overuur] in de volgorde van RATE_ROWS (loontabel havenarbeider alle werk)
+  const ratesFrom = (rows) => Object.fromEntries(RATE_ROWS.map((x, i) => [x.id, { shift: rows[i][0], uur: rows[i][1], overuur: rows[i][2] }]));
   const DEFAULT_RATE_PERIODS = [
     { from: '', values: ratesFrom([
-      [261.74, 54.15], [222.48, 46.04], [183.21, 37.91], [178.12, 36.86], [174.49, 36.11],
-      [185.34, 38.34], [187.58, 38.81], [187.58, 38.81], [200.66, 41.52], [200.66, 41.52],
-      [200.66, 41.52], [209.10, 43.26], [217.52, 45.00], [225.94, 46.74],
-      [261.74, 54.15], [261.74, 54.15], [348.98, 72.21],
+      [261.74, 36.10, 54.15], [222.48, 30.69, 46.04], [183.21, 25.27, 37.91], [178.12, 24.57, 36.86], [174.49, 24.07, 36.11],
+      [185.34, 25.56, 38.34], [187.58, 25.87, 38.81], [187.58, 25.87, 38.81], [200.66, 27.68, 41.52], [200.66, 27.68, 41.52],
+      [200.66, 27.68, 41.52], [209.10, 28.84, 43.26], [217.52, 30.00, 45.00], [225.94, 31.16, 46.74],
+      [261.74, 36.10, 54.15], [261.74, 36.10, 54.15], [348.98, 48.14, 72.21],
     ]) },
     { from: '2026-07-07', values: ratesFrom([
-      [270.18, 55.91], [229.66, 47.52], [189.13, 39.14], [183.82, 38.03], [180.12, 37.26],
-      [191.28, 39.57], [193.63, 40.07], [193.63, 40.07], [207.14, 42.86], [207.14, 42.86],
-      [207.14, 42.86], [215.83, 44.66], [224.53, 46.46], [233.23, 48.26],
-      [270.18, 55.91], [270.18, 55.91], [360.24, 74.54],
+      [270.18, 37.27, 55.91], [229.66, 31.68, 47.52], [189.13, 26.09, 39.14], [183.82, 25.35, 38.03], [180.12, 24.84, 37.26],
+      [191.28, 26.38, 39.57], [193.63, 26.71, 40.07], [193.63, 26.71, 40.07], [207.14, 28.57, 42.86], [207.14, 28.57, 42.86],
+      [207.14, 28.57, 42.86], [215.83, 29.77, 44.66], [224.53, 30.97, 46.46], [233.23, 32.17, 48.26],
+      [270.18, 37.27, 55.91], [270.18, 37.27, 55.91], [360.24, 49.69, 74.54],
     ]) },
   ];
+
+  // --- functies (Codex art. 20 en 31) ---------------------------------------------
+  // Functieloon = basisloon alle werk van die shift + een toeslag uit dezelfde rij van de loontabel.
+  const FUNCTION_GROUPS = {
+    alle: { label: 'Alle werk', extra: () => 0 },
+    chauffeur: { label: 'Chauffeurs (+ 1× overuurloon)', extra: (r) => r.overuur },
+    tuig1: { label: 'Speciale tuigen (+ 2× uurloon)', extra: (r) => 2 * r.uur },
+    tuig2: { label: 'Speciale tuigen (+ 2× overuurloon)', extra: (r) => 2 * r.overuur },
+  };
+  const FUNCTIONS = [
+    ['alle', 'Alle werk', 'alle'],
+    ['highheavy', 'High/heavy chauffeur', 'alle'],
+    ['tugmaster', 'Tugmasterchauffeur', 'chauffeur'],
+    ['heftruck', 'Heftruckchauffeur', 'chauffeur'],
+    ['bobcat', 'Bobcatchauffeur', 'chauffeur'],
+    ['unimog', 'Unimogbestuurder', 'chauffeur'],
+    ['ech', 'Empty container handler', 'chauffeur'],
+    ['hoogwerker', 'Chauffeur hoogwerker', 'chauffeur'],
+    ['tugmasterkaai', 'Tugmasterchauffeur kaai 1xx', 'chauffeur'],
+    ['verreiker', 'Chauffeur verreiker (manitou)', 'chauffeur'],
+    ['bull', 'Bullchauffeur', 'tuig1'],
+    ['heftruck20', 'Heftruckchauffeur +20 ton', 'tuig1'],
+    ['reachstacker', 'Reachstackerchauffeur', 'tuig1'],
+    ['giekkraan-20', 'Giekkraanman −20 ton', 'tuig1'],
+    ['hydraulisch', 'Bediener hydraulische kraan', 'tuig1'],
+    ['straddle', 'Straddle-carrierchauffeur', 'tuig2'],
+    ['portaalkraan', 'Portaalkraanman', 'tuig2'],
+    ['giekkraan+20', 'Giekkraanman +20 ton', 'tuig2'],
+    ['rmgrtg', 'RMG/RTG-bediener', 'tuig2'],
+  ].map(([id, label, group]) => ({ id, label, group }));
+  const functionOf = (id) => FUNCTIONS.find((f) => f.id === id) || FUNCTIONS[0];
 
   // --- vaste waarden (met geldigheidsdatum) ----------------------------------
   const PARAMS = [{
@@ -175,7 +206,11 @@
     return start;
   }
 
-  const rateFor = (ratePeriods, date, row) => validOn(ratePeriods, date).values[row];
+  // oudere bewaarde tabellen hebben geen uurloon: dat is het shiftloon / 7,25 betaalde uren
+  const rateFor = (ratePeriods, date, row) => {
+    const r = validOn(ratePeriods, date).values[row];
+    return { ...r, uur: r.uur ?? round2(r.shift / 7.25) };
+  };
 
   function travelAllowance(date, settings) {
     if (settings.transport === 'fiets') return round2((settings.bikeKm || 0) * (settings.bikeRate || 0));
@@ -201,8 +236,11 @@
     const full = kind === 'full';
     const row = tariffRow(entry.date, entry.code, ctx.holidays, entry.tariff);
     const rate = rateFor(ctx.ratePeriods, entry.date, row);
-    // aanname: een halve shift = de helft van het shiftloon
-    add('shiftloon', full ? 'Shiftloon' : 'Shiftloon (halve shift)', full ? rate.shift : rate.shift / 2, 'A');
+    const fn = functionOf(entry.func);
+    const shiftWage = round2(rate.shift + FUNCTION_GROUPS[fn.group].extra(rate));
+    const label = `Shiftloon${fn.id === 'alle' ? '' : ` ${fn.label.toLowerCase()}`}${full ? '' : ' (halve shift)'}`;
+    // aanname: een halve shift = de helft van het (functie)loon
+    add('shiftloon', label, full ? shiftWage : shiftWage / 2, 'A');
     add('premie', 'Vaste premie', full ? p.premie : p.premieHalf, 'A');
     add('overuren', 'Overuren', (entry.overtime || 0) * rate.overuur, 'A');
     if (entry.wijziging) add('wijziging', 'Wijzigingsvergoeding', p.wijziging, s.extraType);
@@ -368,7 +406,7 @@
 
   const api = {
     round2, addDays, weekday, periodOf, paymentDate,
-    START_HOURS, RATE_ROWS, DEFAULT_RATE_PERIODS, PARAMS, TRAVEL, PLACES, DEFAULT_SETTINGS,
+    START_HOURS, RATE_ROWS, DEFAULT_RATE_PERIODS, FUNCTIONS, FUNCTION_GROUPS, functionOf, PARAMS, TRAVEL, PLACES, DEFAULT_SETTINGS,
     legalHolidays, holidays, holidayOn, tariffRow, rateFor, travelAllowance,
     shiftLines, estimateWithholding, calcPeriod, calcAll,
     CLOTHING, CLOTHING_ITEMS, clothingPointsFor, clothingLedger,
