@@ -20,6 +20,10 @@ Tests (met een echte loonbrief van augustus 2026 die tot op de cent moet kloppen
 node --test
 ```
 
+## Kledijpunten
+
+Volgens de Codex (artikel 39 en bijlage 11): 1 punt per gewerkte shift, 2 punten voor lashing roro, container en high & heavy; saldo afgetopt op 300. Vul het saldo van je loonbrief in als vertrekpunt; afgehaalde kledij gaat van het saldo af.
+
 ## Nog open
 
 - Werkbonus, speciale bijdrage sociale zekerheid: staan op 0 (instelbaar).
@@ -29,3 +33,4 @@ node --test
 - Of wijzigings- en afbestelvergoeding onder RSZ vallen (instelbaar).
 - Halve shift: nu gerekend als de helft van het shiftloon.
 - Overuren: nu exact per minuut gerekend (afronding nog te bevestigen).
+- Kledijpunten: de Codex geldt voor de pool; nog na te gaan of dezelfde regels gelden voor gelegenheidsarbeiders.

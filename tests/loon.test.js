@@ -124,3 +124,34 @@ test('versienummer van de app en version.json zijn gelijk', () => {
   assert.equal(appVersion, version);
   assert.equal(html.match(/<script src="loon\.js\?v=([^"]+)">/)[1], version);
 });
+
+test('kledijpunten: 1 per shift, 2 voor lashing, aftrek bij afhalen', () => {
+  const entries = [
+    shift('2026-09-01', '08'),                       // zit al in het startsaldo
+    shift('2026-09-02', '08'),                       // +1
+    shift('2026-09-03', '06', { work: 'lashing' }),  // +2
+    shift('2026-09-05', '08', { kind: 'afbestel' }), // niet gewerkt: 0
+  ];
+  const purchases = [
+    { id: 'p1', date: '2026-09-04', name: 'Helm met veiligheidsbril', points: 34 },
+    { id: 'p2', date: '2026-09-04', name: 'Handschoenen (per paar)', points: 2, free: true }, // binnengebracht
+  ];
+  const r = Loon.clothingLedger(entries, purchases, { date: '2026-09-01', points: 100 });
+  assert.equal(r.earned, 3);
+  assert.equal(r.spent, 34);
+  assert.equal(r.balance, 69);
+});
+
+test('kledijpunten worden afgetopt op 300', () => {
+  const r = Loon.clothingLedger([shift('2026-09-02', '08', { work: 'lashing' }), shift('2026-09-03', '08')], [], { date: '2026-09-01', points: 299 });
+  assert.equal(r.balance, 300);
+  assert.equal(r.earned, 1);
+  assert.equal(r.lost, 2);
+});
+
+test('kledijartikelen uit bijlage 11', () => {
+  const parka = Loon.CLOTHING_ITEMS.find((i) => i.name === 'Winterparka');
+  assert.equal(parka.points, 90);
+  assert.equal(parka.pack, 'minimum');
+  assert.equal(new Set(Loon.CLOTHING_ITEMS.map((i) => i.id)).size, Loon.CLOTHING_ITEMS.length);
+});

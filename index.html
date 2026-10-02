@@ -221,6 +221,11 @@
     </select>
 
     <div id="workFields">
+      <label for="work">Soort werk</label>
+      <select id="work">
+        <option value="other">Gewoon werk (1 kledijpunt)</option>
+        <option value="lashing">Lashing roro, container, high &amp; heavy (2 kledijpunten)</option>
+      </select>
       <div class="row2">
         <div>
           <label for="code">Start</label>
@@ -266,6 +271,32 @@
   <section class="card">
     <h2>Uitbetalingen</h2>
     <div id="slips"></div>
+  </section>
+
+  <section class="card" id="clothCard">
+    <h2>Kledijpunten</h2>
+    <div class="totals">
+      <div class="stat big"><div class="k">Saldo <span id="clMax"></span></div><div class="v" id="clBalance"></div></div>
+    </div>
+    <p class="hint" id="clInfo"></p>
+    <p class="warn" id="clWarn" hidden></p>
+
+    <label for="clItem">Kledij afhalen</label>
+    <select id="clItem"></select>
+    <label for="clDate">Datum</label>
+    <input type="date" id="clDate">
+    <label class="check"><input type="checkbox" id="clFree"> Gratis vervangen (arbeidsongeval, fabricagefout, handschoenen binnengebracht)</label>
+    <button class="btn" id="clAdd">Afhalen</button>
+    <ul class="list" id="clList"></ul>
+
+    <details id="clStartBox">
+      <summary>Saldo van je loonbrief</summary>
+      <p class="hint">Vul het kledijsaldo van je laatste loonbrief in, met de datum waarop het geldt. Shiften en afgehaalde kledij tot en met die datum zitten daar al in.</p>
+      <div class="row2">
+        <div><label for="clStartPts">Punten</label><input id="clStartPts" inputmode="numeric" placeholder="0"></div>
+        <div><label for="clStartDate">Op datum</label><input type="date" id="clStartDate"></div>
+      </div>
+    </details>
   </section>
 
   <section class="card">
@@ -392,11 +423,11 @@
   </section>
 </main>
 
-<script src="loon.js?v=2026-09-27.1"></script>
+<script src="loon.js?v=2026-10-02.1"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-09-27.1';
+const APP_VERSION = '2026-10-02.1';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -455,6 +486,9 @@ const APP_VERSION = '2026-09-27.1';
   const KEY_SETTINGS = 'haven-werkuren.settings';
   const KEY_HOLIDAYS = 'haven-werkuren.holidays';
   const KEY_MODE = 'haven-werkuren.showMode';
+  const KEY_LAST_WORK = 'haven-werkuren.lastWork';
+  const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
+  const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -481,6 +515,8 @@ const APP_VERSION = '2026-09-27.1';
   let settings = { ...Loon.DEFAULT_SETTINGS, ...load(KEY_SETTINGS, {}) };
   let holidayOverrides = load(KEY_HOLIDAYS, {});
   let showMode = load(KEY_MODE, 'bruto');
+  let purchases = load(KEY_PURCHASES, []);
+  let clothingStart = load(KEY_CLOTH_START, { date: '', points: 0 });
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -643,7 +679,7 @@ const APP_VERSION = '2026-09-27.1';
   function readForm() {
     return {
       id: '__preview',
-      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value,
+      date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value,
       wijziging: $('wijziging').checked,
       company: companyId, companyName: companyById(companyId)?.name || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
@@ -674,6 +710,7 @@ const APP_VERSION = '2026-09-27.1';
     if (e.kind === 'afbestel') { e.overtime = 0; e.wijziging = false; }
     entries.push(e);
     save(KEY_ENTRIES, entries);
+    save(KEY_LAST_WORK, e.work);
     $('ot').value = ''; $('note').value = ''; $('wijziging').checked = false;
     $('kind').value = 'full'; $('tariff').value = 'auto';
     renderCompanyPicker();
@@ -755,6 +792,7 @@ const APP_VERSION = '2026-09-27.1';
         e.overtime && e.kind !== 'afbestel' ? `<span class="ot">${fmtHours(e.overtime)} overuren (${money(ot?.amount)})</span>` : '',
         e.wijziging ? 'wijzigingsvergoeding' : '',
         `netto ± ${money(x.netto)}`,
+        clothingLabel(e),
         e.note ? escapeHtml(e.note) : '',
       ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
@@ -848,6 +886,7 @@ const APP_VERSION = '2026-09-27.1';
     $('perCo').hidden = !$('perCo').innerHTML;
 
     $('slips').innerHTML = slipHtml('A') + slipHtml('B');
+    renderClothing();
 
     renderCalendar();
     renderDay();
@@ -860,6 +899,76 @@ const APP_VERSION = '2026-09-27.1';
     const m = ev.target.closest('[data-m]')?.dataset.m;
     if (!m) return;
     showMode = m; save(KEY_MODE, m); render();
+  });
+
+  // --- kledijpunten -------------------------------------------------------
+  const pointsText = (n) => `${n} punt${Math.abs(n) === 1 ? '' : 'en'}`;
+  function clothingLabel(e) {
+    const n = Loon.clothingPointsFor(e);
+    return n ? `+${pointsText(n)} kledij` : '';
+  }
+  const PACKS = { minimum: 'Minimumpakket', basis: 'Basispakket', aanvullend: 'Aanvullend pakket' };
+
+  function renderClothing() {
+    const l = Loon.clothingLedger(entries, purchases, clothingStart);
+    $('clBalance').textContent = pointsText(l.balance);
+    $('clBalance').classList.toggle('ot', l.balance < 0);
+    $('clMax').textContent = `(max ${l.max})`;
+    $('clInfo').textContent = clothingStart.date
+      ? `Sinds je loonbrief van ${fmtDate(clothingStart.date)}: +${l.earned} opgebouwd, −${l.spent} afgehaald.`
+      : `Opgebouwd: ${l.earned} · afgehaald: ${l.spent}. Vul onderaan het saldo van je loonbrief in, dan klopt het met Cewez.`;
+    const warn = [];
+    if (l.balance >= l.max) warn.push(`Je zit aan het maximum van ${l.max} punten: nieuwe punten gaan verloren. Haal eerst kledij af.`);
+    else if (l.lost) warn.push(`${pointsText(l.lost)} verloren omdat je saldo aan het maximum zat.`);
+    if (l.balance < 0) warn.push('Je saldo staat in min. Dat mag enkel voor één artikel uit het basispakket.');
+    $('clWarn').hidden = !warn.length;
+    $('clWarn').textContent = warn.join(' ');
+
+    const cur = $('clItem').value;
+    $('clItem').innerHTML = Object.entries(PACKS).map(([pack, title]) => `<optgroup label="${title}">${
+      Loon.CLOTHING_ITEMS.filter((i) => i.pack === pack).map((i) => {
+        const short = i.points - l.balance;
+        return `<option value="${i.id}">${escapeHtml(i.name)} · ${i.points} p${short > 0 ? ` (nog ${short} tekort)` : ''}</option>`;
+      }).join('')}</optgroup>`).join('');
+    if (cur) $('clItem').value = cur;
+
+    const list = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
+    $('clList').innerHTML = list.map((p) => `<li>
+      <div class="li-main"><div class="d">${escapeHtml(p.name)}</div>
+        <div class="m">${fmtDate(p.date)}${p.free ? ' · gratis vervangen' : ''}${clothingStart.date && p.date <= clothingStart.date ? ' · zit al in je loonbriefsaldo' : ''}</div></div>
+      <div class="li-amt">${p.free ? '0' : '−' + p.points} p</div>
+      <button class="del" data-pid="${p.id}" aria-label="Verwijderen">✕</button></li>`).join('');
+    $('clList').hidden = !list.length;
+    $('clStartPts').value = clothingStart.points || '';
+    $('clStartDate').value = clothingStart.date || '';
+  }
+
+  $('clAdd').addEventListener('click', () => {
+    const item = Loon.CLOTHING_ITEMS.find((i) => i.id === $('clItem').value);
+    const date = $('clDate').value;
+    if (!item || !date) return alert('Kies een artikel en een datum.');
+    const free = $('clFree').checked;
+    const before = Loon.clothingLedger(entries, purchases, clothingStart).balance;
+    if (!free && before - item.points < 0
+      && !confirm(`Niet genoeg punten: je saldo wordt ${before - item.points}. Toch opslaan?`)) return;
+    purchases.push({ id: 'k' + Date.now().toString(36), date, itemId: item.id, name: item.name, points: item.points, free });
+    save(KEY_PURCHASES, purchases);
+    $('clFree').checked = false;
+    renderClothing();
+  });
+  $('clList').addEventListener('click', (ev) => {
+    const id = ev.target.closest('[data-pid]')?.dataset.pid;
+    if (!id || !confirm('Deze afgehaalde kledij verwijderen?')) return;
+    purchases = purchases.filter((p) => p.id !== id);
+    save(KEY_PURCHASES, purchases);
+    renderClothing();
+  });
+  $('clStartBox').addEventListener('change', () => {
+    const pts = Number($('clStartPts').value.trim() || 0);
+    if (!Number.isFinite(pts)) { renderClothing(); return alert('Vul een geldig aantal punten in.'); }
+    clothingStart = { date: $('clStartDate').value, points: pts };
+    save(KEY_CLOTH_START, clothingStart);
+    renderClothing();
   });
 
   // --- netto-instellingen -------------------------------------------------
@@ -989,7 +1098,7 @@ const APP_VERSION = '2026-09-27.1';
   }
   $('exportJson').addEventListener('click', () => {
     download(`werkuren-backup-${isoDate(new Date())}.json`,
-      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies }, null, 2), 'application/json');
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -1005,8 +1114,11 @@ const APP_VERSION = '2026-09-27.1';
       if (data.holidayOverrides) holidayOverrides = data.holidayOverrides;
       if (Array.isArray(data.customCompanies)) customCompanies = data.customCompanies;
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
+      if (Array.isArray(data.purchases)) purchases = data.purchases;
+      if (data.clothingStart) clothingStart = data.clothingStart;
       save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
+      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart);
       renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
@@ -1049,6 +1161,8 @@ const APP_VERSION = '2026-09-27.1';
   save(KEY_PERIODS, periods);
   renderCompanyPicker();
   fillCodes();
+  $('work').value = load(KEY_LAST_WORK, 'other');
+  $('clDate').value = isoDate(today);
   renderSettings();
   renderHolidays();
   renderRates();

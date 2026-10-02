@@ -313,11 +313,65 @@
     return { periods, shifts };
   }
 
+  // --- kledijpunten (Codex art. 39 en bijlage 11) ----------------------------------
+  // Per gewerkte shift punten opbouwen; het saldo wordt continu afgetopt op het maximum
+  // en mag niet negatief worden (enkel voor één artikel uit het basispakket).
+  const CLOTHING = [{
+    from: '2024-11-21',
+    max: 300,
+    perShift: { lashing: 2, other: 1 }, // lashing roro / container / high & heavy = 2; al de rest = 1
+  }];
+  const CLOTHING_ITEMS = [
+    ['minimum', 'Handschoenen (per paar)', 2], ['minimum', 'Oordopjes', 2], ['minimum', 'Impacthandschoenen (per paar)', 3],
+    ['minimum', 'Fluo gilet', 9], ['minimum', 'Signalisatiebroek', 27], ['minimum', 'Broek stretch', 30],
+    ['minimum', 'Helm met veiligheidsbril', 34], ['minimum', 'Sweater', 37], ['minimum', 'Samurai merlot schoenen', 46],
+    ['minimum', 'Albatros schoenen', 66], ['minimum', 'Elten schoenen', 81], ['minimum', 'Winterparka', 90],
+    ['basis', 'Signaalfluitje', 2], ['basis', 'Zonnebril', 8], ['basis', 'Stootpet', 20], ['basis', 'Helm', 26],
+    ['basis', 'Signalisatieregenbroek', 28], ['basis', 'Signalisatiebretelbroek', 38], ['basis', 'Softshell', 40],
+    ['basis', 'Bretelbroek stretch', 40], ['basis', 'Otoplastieken (op maat)', 60], ['basis', 'Winterlaarzen', 79],
+    ['aanvullend', 'Life saving kiss', 2], ['aanvullend', 'Zweetbandje helm', 2], ['aanvullend', 'Schoenveters', 2],
+    ['aanvullend', 'Helmmuts', 9], ['aanvullend', 'Helmcover signaalman', 11], ['aanvullend', 'Helmcover foreman', 11],
+    ['aanvullend', 'Thermisch onderbroek', 11], ['aanvullend', 'Thermisch onderhemd', 11],
+    ['aanvullend', 'Signalisatie t-shirt', 21], ['aanvullend', 'Regenlaarzen', 36], ['aanvullend', 'Winteroverall', 140],
+  ].map(([pack, name, points]) => ({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, ''), pack, name, points }));
+
+  // punten van één shift (afbestelling = niet gewerkt = geen punten)
+  function clothingPointsFor(entry) {
+    if (entry.kind === 'afbestel') return 0;
+    return validOn(CLOTHING, entry.date).perShift[entry.work === 'lashing' ? 'lashing' : 'other'];
+  }
+
+  // Verloop van het kledijsaldo. start = { date, points } (saldo van de loonbrief op die datum;
+  // shiften tot en met die datum zitten daar al in). purchases = [{ id, date, name, points, free }].
+  function clothingLedger(entries, purchases = [], start = {}) {
+    const from = start.date || '';
+    const events = [
+      ...entries.filter((e) => e.date > from).map((e) => ({ date: e.date, order: 0, kind: 'shift', entry: e, points: clothingPointsFor(e) })),
+      ...purchases.filter((p) => p.date > from).map((p) => ({ date: p.date, order: 1, kind: 'purchase', purchase: p, points: p.free ? 0 : -p.points })),
+    ].sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
+    let balance = Number(start.points) || 0, earned = 0, lost = 0, spent = 0;
+    for (const ev of events) {
+      if (ev.kind === 'shift') {
+        const max = validOn(CLOTHING, ev.date).max;
+        const room = Math.max(0, max - balance);
+        const added = Math.min(ev.points, room);
+        balance += added; earned += added; lost += ev.points - added;
+        ev.added = added;
+      } else {
+        balance += ev.points; spent -= ev.points;
+      }
+      ev.balance = balance;
+    }
+    return { balance, earned, lost, spent, max: validOn(CLOTHING, isoToday()).max, events };
+  }
+  const isoToday = () => toIso(new Date());
+
   const api = {
     round2, addDays, weekday, periodOf, paymentDate,
     START_HOURS, RATE_ROWS, DEFAULT_RATE_PERIODS, PARAMS, TRAVEL, PLACES, DEFAULT_SETTINGS,
     legalHolidays, holidays, holidayOn, tariffRow, rateFor, travelAllowance,
     shiftLines, estimateWithholding, calcPeriod, calcAll,
+    CLOTHING, CLOTHING_ITEMS, clothingPointsFor, clothingLedger,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Loon = api;
