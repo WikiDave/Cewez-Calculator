@@ -131,6 +131,8 @@
     margin: 20px 0 8px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line);
     font-size: 13px; line-height: 1.45; color: var(--muted); text-align: center;
   }
+  .disclaimer p { margin: 0; }
+  .disclaimer p + p { margin-top: 8px; }
   .disclaimer b, .disclaimer-text b { color: var(--text); }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
@@ -320,8 +322,8 @@
 
     <section>
       <h3>Over deze app</h3>
-      <p class="disclaimer-text">Deze app is gebouwd door een havenarbeider, <b>David Schütt</b>, met behulp van AI (Claude). De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief en de officiële informatie van Cewez.</p>
-      <p class="hint">De app telt anoniem op hoeveel toestellen hij gebruikt wordt: elk toestel telt één keer, zonder naam en zonder je gegevens.</p>
+      <p class="disclaimer-text">Dit is een <b>hobbyproject</b> van een havenarbeider, <b>David Schütt</b>, gebouwd met behulp van AI (Claude). Het heeft <b>niets te maken met Cewez</b>. De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief.</p>
+      <p class="hint">De app werkt offline op je gsm: je uren, je loon en al je gegevens blijven op je toestel en worden nergens gedeeld. Er wordt alleen geteld hoe vaak de link gedeeld wordt en op hoeveel toestellen de app geopend is, zonder namen of gegevens.</p>
     </section>
 
     <form method="dialog"><button class="btn" value="ok">Begrepen</button></form>
@@ -598,17 +600,17 @@
     </details>
   </section>
   <footer class="disclaimer">
-    Deze app is gebouwd door een havenarbeider, <b>David Schütt</b>, met behulp van AI (Claude).
-    De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief en de officiële informatie van Cewez.
+    <p>Dit is een <b>hobbyproject</b> van een havenarbeider, <b>David Schütt</b>, gebouwd met behulp van AI (Claude). Het heeft <b>niets te maken met Cewez</b>. De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief.</p>
+    <p>De app werkt offline op je gsm: je uren, je loon en al je gegevens blijven op je toestel en worden nergens gedeeld. Er wordt alleen geteld hoe vaak de link gedeeld wordt en op hoeveel toestellen de app geopend is, zonder namen of gegevens.</p>
   </footer>
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.14"></script>
+<script src="loon.js?v=2026-10-02.15"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.14';
+const APP_VERSION = '2026-10-02.15';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -1431,8 +1433,9 @@ const APP_VERSION = '2026-10-02.14';
     const msg = (t) => { $('shareMsg').textContent = t; $('shareMsg').hidden = false; };
     const data = { title: 'Haven Werkuren', text: 'Hou je shiften, overuren en netto bij met Haven Werkuren:', url: APP_URL };
     try {
-      if (navigator.share) { await navigator.share(data); return; }
+      if (navigator.share) { await navigator.share(data); countShare(); return; }
       await navigator.clipboard.writeText(APP_URL);
+      countShare();
       msg('Link gekopieerd. Plak hem in een bericht naar je collega.');
     } catch (err) {
       if (err && err.name === 'AbortError') return; // delen geannuleerd
@@ -1446,7 +1449,12 @@ const APP_VERSION = '2026-10-02.14';
   // Enkel op de echte website, niet tijdens het testen.
   const COUNTER_URL = 'https://abacus.jasoncameron.dev';
   const COUNTER_KEY = 'cewez-calculator/toestellen';
+  const SHARE_KEY = 'cewez-calculator/gedeeld';
   const countingSite = location.hostname === 'wikidave.github.io';
+  // elke keer dat iemand de link deelt of kopieert via de knop "Link delen"
+  function countShare() {
+    if (countingSite) fetch(`${COUNTER_URL}/hit/${SHARE_KEY}`).catch(() => {});
+  }
   async function countDevice() {
     if (!countingSite || load(KEY_COUNTED, false)) return;
     try {

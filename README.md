@@ -1,8 +1,9 @@
 # Cewez-Calculator
 
 ![Toestellen die de app gebruiken](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fabacus.jasoncameron.dev%2Fget%2Fcewez-calculator%2Ftoestellen&query=%24.value&label=toestellen&color=0f5c8c&cacheSeconds=3600)
+![Hoe vaak de link gedeeld is](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fabacus.jasoncameron.dev%2Fget%2Fcewez-calculator%2Fgedeeld&query=%24.value&label=gedeeld&color=e87a3e&cacheSeconds=3600)
 
-Gebouwd door een havenarbeider, David Schütt, met behulp van AI (Claude); de informatie kan fout zijn.
+Hobbyproject van een havenarbeider, David Schütt, gebouwd met behulp van AI (Claude). Dit project heeft niets te maken met Cewez. De informatie kan fout zijn. De app werkt offline op de gsm; gegevens blijven op het toestel en worden niet gedeeld.
 
 Werkuren en loon bijhouden voor havenarbeid in Zeebrugge: kies per dag het bedrijf en het startuur, vul eventuele overuren in (na 7u45) en zie per maand het bruto en het geschatte netto per uitbetaling.
 
@@ -11,7 +12,7 @@ Werkuren en loon bijhouden voor havenarbeid in Zeebrugge: kies per dag het bedri
 
 ## Gebruikers tellen
 
-De app telt anoniem op hoeveel toestellen hij gebruikt wordt: bij de eerste start op de echte site (wikidave.github.io) stuurt een toestel één keer "+1" naar een teller van [Abacus](https://abacus.jasoncameron.dev) (`cewez-calculator/toestellen`), zonder gegevens. Het aantal staat niet in de app, enkel in de badge bovenaan deze README. De teller vervalt na ongeveer 6 maanden zonder nieuw toestel.
+Er wordt alleen geteld, zonder namen of gegevens, via tellers van [Abacus](https://abacus.jasoncameron.dev): bij de eerste start op de echte site (wikidave.github.io) stuurt een toestel één keer "+1" (`cewez-calculator/toestellen`), en elke keer dat iemand de knop "Link delen" gebruikt telt `cewez-calculator/gedeeld`. De aantallen staan niet in de app, enkel in de badges bovenaan deze README. De teller vervalt na ongeveer 6 maanden zonder nieuw toestel.
 
 ## Loonberekening
 
