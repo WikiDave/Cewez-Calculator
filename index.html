@@ -96,7 +96,12 @@
   .locrow .del { grid-column: 2; grid-row: 1 / span 2; }
   .linkbtn { border: 0; background: transparent; color: var(--accent); font-weight: 600; padding: 8px 0; cursor: pointer; }
   header { display: flex; align-items: flex-start; gap: 12px; }
-  header > div { flex: 1; }
+  header > div:first-child { flex: 1; }
+  .hbtns { display: flex; flex-direction: column; gap: 6px; }
+  textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: inherit; font: inherit; resize: vertical;
+  }
   .help {
     flex: none; border: 1px solid var(--line); background: var(--card); color: var(--accent);
     border-radius: 999px; padding: 8px 14px; min-height: 40px; font-weight: 600; cursor: pointer;
@@ -242,8 +247,26 @@
       <h1>Haven Werkuren</h1>
       <p class="sub">Shiften, overuren en netto per uitbetaling</p>
     </div>
-    <button type="button" class="help" id="helpBtn">Uitleg</button>
+    <div class="hbtns">
+      <button type="button" class="help" id="helpBtn">Uitleg</button>
+      <button type="button" class="help" id="bugBtn">Fout melden</button>
+    </div>
   </header>
+
+  <dialog class="sheet" id="bugDialog" aria-labelledby="bugTitle">
+    <form method="dialog" class="sheet-x"><button value="close" aria-label="Sluiten">✕</button></form>
+    <h2 id="bugTitle">Fout melden</h2>
+    <p>Beschrijf wat er misging. Je melding komt terecht bij de maker van de app, op GitHub.</p>
+    <label for="bugWhat">Wat ging er mis?</label>
+    <textarea id="bugWhat" rows="4" placeholder="bv. het netto van 15 september klopt niet met mijn loonbrief"></textarea>
+    <label for="bugExpect">Wat had je verwacht? (optioneel)</label>
+    <textarea id="bugExpect" rows="2" placeholder="bv. op mijn loonbrief staat € 239,84"></textarea>
+    <label class="check"><input type="checkbox" id="bugDay"> <span>Gekozen dag meesturen (<span id="bugDayName"></span>: shift, functie en bedragen, zonder notities)</span></label>
+    <p class="hint">De app-versie en het type toestel worden automatisch toegevoegd. Let op: meldingen zijn <b>openbaar</b> zichtbaar op GitHub. Je hebt een gratis GitHub-account nodig om ze te versturen.</p>
+    <button type="button" class="btn" id="bugSend">Melding maken op GitHub</button>
+    <button type="button" class="btn ghost" id="bugCopy">Tekst kopiëren</button>
+    <p class="hint" id="bugMsg" hidden></p>
+  </dialog>
 
   <dialog class="sheet" id="welcome" aria-labelledby="welcomeTitle">
     <form method="dialog" class="sheet-x"><button value="close" aria-label="Sluiten">✕</button></form>
@@ -558,11 +581,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.9"></script>
+<script src="loon.js?v=2026-10-02.10"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.9';
+const APP_VERSION = '2026-10-02.10';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -1393,6 +1416,50 @@ const APP_VERSION = '2026-10-02.9';
       if (err && err.name === 'AbortError') return; // delen geannuleerd
       msg(`Kopieer deze link: ${APP_URL}`);
     }
+  });
+
+  // --- fout melden (GitHub-issue) --------------------------------------------
+  const ISSUE_URL = 'https://github.com/WikiDave/Cewez-Calculator/issues/new';
+  function bugReport() {
+    const what = $('bugWhat').value.trim();
+    const expect = $('bugExpect').value.trim();
+    const lines = ['**Wat ging er mis?**', what || '(niet ingevuld)', ''];
+    if (expect) lines.push('**Wat had ik verwacht?**', expect, '');
+    if ($('bugDay').checked) {
+      const list = dayEntries(selected);
+      lines.push(`**Dag ${selected}**`);
+      if (!list.length) lines.push('- geen shiften');
+      for (const e of list) {
+        const x = shiftOf(e);
+        lines.push(`- ${entryTitle(e)}; ${{ full: 'volle shift', half: 'halve shift', afbestel: 'afbestelling' }[e.kind] || e.kind}; overuren: ${fmtHours(overtimeOf(e))}; bruto ${money(x.bruto)}; netto ± ${money(x.netto)}`);
+      }
+      lines.push('');
+    }
+    lines.push('---', `App-versie: ${APP_VERSION} · Als app: ${standalone ? 'ja' : 'nee'} · Scherm: ${screen.width}×${screen.height}`, `Toestel: ${navigator.userAgent}`);
+    const title = 'Fout: ' + (what.split('\n')[0].slice(0, 70) || 'zonder omschrijving');
+    return { title, body: lines.join('\n').slice(0, 6000) };
+  }
+  const bugMsg = (t) => { $('bugMsg').textContent = t; $('bugMsg').hidden = !t; };
+  $('bugBtn').addEventListener('click', () => {
+    $('bugDayName').textContent = fmtDate(selected, { day: 'numeric', month: 'long' });
+    bugMsg('');
+    if (typeof $('bugDialog').showModal === 'function') $('bugDialog').showModal();
+    else $('bugDialog').setAttribute('open', '');
+  });
+  $('bugDialog').addEventListener('click', (ev) => { if (ev.target === $('bugDialog')) $('bugDialog').close(); });
+  $('bugSend').addEventListener('click', () => {
+    if (!$('bugWhat').value.trim()) { bugMsg('Beschrijf eerst kort wat er misging.'); $('bugWhat').focus(); return; }
+    const { title, body } = bugReport();
+    const url = `${ISSUE_URL}?labels=bug&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    window.open(url, '_blank', 'noopener');
+    bugMsg('GitHub is geopend in een nieuw venster. Meld je aan en tik op "Submit new issue" om te versturen.');
+  });
+  $('bugCopy').addEventListener('click', async () => {
+    const { title, body } = bugReport();
+    try {
+      await navigator.clipboard.writeText(`${title}\n\n${body}`);
+      bugMsg('Tekst gekopieerd. Je kunt hem plakken in een bericht of e-mail.');
+    } catch { bugMsg('Kopiëren lukte niet op dit toestel.'); }
   });
 
   // offline werken (enkel op een echte website, niet als los bestand)
