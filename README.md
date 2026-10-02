@@ -5,6 +5,10 @@ Werkuren en loon bijhouden voor havenarbeid in Zeebrugge: kies per dag het bedri
 - Open de app via GitHub Pages en zet hem op je beginscherm (de knop "Uitleg" legt uit hoe). Hij werkt ook offline (service worker in `sw.js`, manifest in `manifest.webmanifest`).
 - Gegevens blijven op je toestel (browseropslag); maak af en toe een back-up via "Back-up & export".
 
+## Gebruikers tellen
+
+De app telt anoniem op hoeveel toestellen hij gebruikt wordt: bij de eerste start op de echte site (wikidave.github.io) stuurt een toestel één keer "+1" naar een teller van [Abacus](https://abacus.jasoncameron.dev) (`cewez-calculator/toestellen`), zonder gegevens. Het aantal staat in het uitlegvenster. De teller vervalt na ongeveer 6 maanden zonder nieuw toestel.
+
 ## Loonberekening
 
 De berekening staat in `loon.js` (zonder schermcode) en volgt de opbouw van de Cewez-loonbrief:
