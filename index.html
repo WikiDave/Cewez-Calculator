@@ -127,6 +127,11 @@
     width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); color: var(--text);
     font-size: 18px; cursor: pointer;
   }
+  .disclaimer {
+    margin: 20px 0 8px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line);
+    font-size: 13px; line-height: 1.45; color: var(--muted); text-align: center;
+  }
+  .disclaimer b, .disclaimer-text b { color: var(--text); }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -314,8 +319,8 @@
     </section>
 
     <section>
-      <h3>Gebruikers</h3>
-      <p id="usersLine" hidden></p>
+      <h3>Over deze app</h3>
+      <p class="disclaimer-text">Deze app is gebouwd door een havenarbeider, <b>David Schütt</b>, met behulp van AI (Claude). De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief en de officiële informatie van Cewez.</p>
       <p class="hint">De app telt anoniem op hoeveel toestellen hij gebruikt wordt: elk toestel telt één keer, zonder naam en zonder je gegevens.</p>
     </section>
 
@@ -592,14 +597,18 @@
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </details>
   </section>
+  <footer class="disclaimer">
+    Deze app is gebouwd door een havenarbeider, <b>David Schütt</b>, met behulp van AI (Claude).
+    De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief en de officiële informatie van Cewez.
+  </footer>
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.13"></script>
+<script src="loon.js?v=2026-10-02.14"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.13';
+const APP_VERSION = '2026-10-02.14';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -1398,7 +1407,6 @@ const APP_VERSION = '2026-10-02.13';
       ? 'Je gebruikt de app al vanaf je beginscherm. Hieronder lees je hoe je hem deelt en hoe je gegevens bewaard worden.'
       : 'Zet de app op je beginscherm. Dan opent hij als een gewone app, zonder adresbalk, en werkt hij ook met slecht bereik op de kaai.';
     $('installBtn').hidden = standalone || !installPrompt;
-    loadUsers();
     $('shareMsg').hidden = true;
     if (typeof $('welcome').showModal === 'function') $('welcome').showModal();
     else $('welcome').setAttribute('open', '');
@@ -1434,30 +1442,18 @@ const APP_VERSION = '2026-10-02.13';
 
   // --- anoniem tellen op hoeveel toestellen de app gebruikt wordt -----------
   // Elk toestel stuurt één keer "+1" naar een teller (Abacus); er gaat niets mee over de gebruiker.
+  // Het aantal staat niet in de app, enkel als badge in de README op GitHub.
   // Enkel op de echte website, niet tijdens het testen.
   const COUNTER_URL = 'https://abacus.jasoncameron.dev';
   const COUNTER_KEY = 'cewez-calculator/toestellen';
   const countingSite = location.hostname === 'wikidave.github.io';
-  function showUsers(n) {
-    if (!(n > 0)) return;
-    $('usersLine').textContent = `Haven Werkuren wordt gebruikt op ${n} ${n === 1 ? 'toestel' : 'toestellen'}.`;
-    $('usersLine').hidden = false;
-  }
   async function countDevice() {
     if (!countingSite || load(KEY_COUNTED, false)) return;
     try {
       const res = await fetch(`${COUNTER_URL}/hit/${COUNTER_KEY}`);
       if (!res.ok) return;
       save(KEY_COUNTED, true);
-      showUsers((await res.json()).value);
     } catch { /* offline: volgende keer opnieuw proberen */ }
-  }
-  async function loadUsers() {
-    if (!countingSite) return;
-    try {
-      const res = await fetch(`${COUNTER_URL}/get/${COUNTER_KEY}`, { cache: 'no-store' });
-      if (res.ok) showUsers((await res.json()).value);
-    } catch { /* offline: aantal niet tonen */ }
   }
 
   // --- fout melden (GitHub-issue) --------------------------------------------
