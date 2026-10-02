@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f3d5e">
 <title>Haven Werkuren</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
   :root {
     --bg: #f3f5f8; --card: #ffffff; --text: #16202b; --muted: #637083;
@@ -73,6 +74,11 @@
   .where a, .li-main a { color: var(--accent); font-weight: 600; }
   #coList li { align-items: flex-start; }
   #coList input { min-height: 38px; padding: 6px 10px; margin-top: 6px; font-size: 14px; }
+  .mapbox { margin-top: 10px; }
+  .mapbox summary { font-weight: 600; color: var(--accent); }
+  #map { height: 320px; border-radius: 10px; margin-top: 8px; border: 1px solid var(--line); z-index: 0; }
+  a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -232,6 +238,15 @@
       </div>
     </div>
     <p class="where" id="coWhere" hidden></p>
+    <details class="mapbox" id="mapBox" hidden>
+      <summary>Kaai op de kaart</summary>
+      <p class="hint" id="mapHint"></p>
+      <div id="map" role="application" aria-label="Kaart van de haven"></div>
+      <div class="tools">
+        <button class="btn ghost" id="pinClear" type="button">Spelt wissen</button>
+        <a class="btn" id="pinRoute" target="_blank" rel="noopener">Route naar spelt</a>
+      </div>
+    </details>
 
     <label for="kind">Soort</label>
     <select id="kind">
@@ -453,11 +468,12 @@
   </section>
 </main>
 
-<script src="loon.js?v=2026-10-02.3"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="loon.js?v=2026-10-02.4"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.3';
+const APP_VERSION = '2026-10-02.4';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -525,6 +541,7 @@ const APP_VERSION = '2026-10-02.3';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
   const KEY_CO_ADDR = 'haven-werkuren.companyAddresses';
+  const KEY_CO_PIN = 'haven-werkuren.companyPins';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -554,6 +571,7 @@ const APP_VERSION = '2026-10-02.3';
   let purchases = load(KEY_PURCHASES, []);
   let clothingStart = load(KEY_CLOTH_START, { date: '', points: 0 });
   let companyAddresses = load(KEY_CO_ADDR, {});
+  let companyPins = load(KEY_CO_PIN, {});
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -626,8 +644,14 @@ const APP_VERSION = '2026-10-02.3';
   }
 
   const addressOf = (id) => (id in companyAddresses ? companyAddresses[id] : DEFAULT_ADDRESSES[id]) || '';
-  const mapsUrl = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  const routeLink = (address) => `<a href="${mapsUrl(address)}" target="_blank" rel="noopener">Route</a>`;
+  // route naar de spelt als die gezet is, anders naar het adres
+  function routeUrl(id) {
+    const pin = companyPins[id];
+    if (pin) return `https://www.google.com/maps/dir/?api=1&destination=${pin.lat},${pin.lng}`;
+    const addr = addressOf(id);
+    return addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
+  }
+  const routeLink = (id) => (routeUrl(id) ? `<a href="${routeUrl(id)}" target="_blank" rel="noopener">Route</a>` : '');
 
   function renderCompanyPicker() {
     if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
@@ -652,9 +676,12 @@ const APP_VERSION = '2026-10-02.3';
     const sel = companyById(companyId);
     const addr = addressOf(companyId);
     $('coWhere').hidden = !sel;
+    const pinned = !!companyPins[companyId];
     $('coWhere').innerHTML = !sel ? ''
-      : addr ? `${escapeHtml(sel.name)}: ${escapeHtml(addr)} · ${routeLink(addr)}`
-      : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren.`;
+      : addr || pinned ? `${escapeHtml(sel.name)}: ${escapeHtml(addr || 'eigen spelt op de kaart')}${pinned && addr ? ' · spelt gezet' : ''} · ${routeLink(companyId)}`
+      : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren, of zet een spelt op de kaart.`;
+    $('mapBox').hidden = !sel;
+    updateMap();
 
     $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
         <div class="li-main"><div class="d">${escapeHtml(c.name)}</div>
@@ -724,6 +751,64 @@ const APP_VERSION = '2026-10-02.3';
     hiddenCompanies = [];
     save(KEY_HIDDEN_CO, hiddenCompanies);
     renderCompanyPicker();
+  });
+
+  // --- kaai op de kaart (Leaflet) ------------------------------------------
+  const PORT_CENTER = [51.335, 3.205]; // haven van Zeebrugge
+  let map = null, marker = null, mapCompany = null;
+  function ensureMap() {
+    if (map || !window.L) return !!map;
+    map = L.map('map', { zoomControl: true }).setView(PORT_CENTER, 13);
+    const streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap',
+    });
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics',
+    });
+    satellite.addTo(map);
+    L.control.layers({ Satelliet: satellite, Kaart: streets }, null, { position: 'topright' }).addTo(map);
+    map.on('click', (ev) => setPin(ev.latlng));
+    return true;
+  }
+  function setPin(latlng) {
+    if (!companyId) return;
+    companyPins[companyId] = { lat: Number(latlng.lat.toFixed(6)), lng: Number(latlng.lng.toFixed(6)) };
+    save(KEY_CO_PIN, companyPins);
+    renderCompanyPicker(); render();
+  }
+  function updateMap() {
+    const sel = companyById(companyId);
+    const pin = companyPins[companyId];
+    $('mapHint').textContent = !sel ? ''
+      : pin ? `Sleep de spelt om de plaats van ${sel.name} te verbeteren.`
+      : `Tik op de kaart waar je moet zijn bij ${sel.name}. Daarna kun je de spelt verslepen.`;
+    $('pinRoute').href = routeUrl(companyId) || '#';
+    $('pinRoute').setAttribute('aria-disabled', String(!pin));
+    $('pinClear').disabled = !pin;
+    if (!$('mapBox').open || !ensureMap()) return;
+    map.invalidateSize();
+    if (pin) {
+      if (!marker) {
+        marker = L.marker([pin.lat, pin.lng], { draggable: true }).addTo(map);
+        marker.on('dragend', () => setPin(marker.getLatLng()));
+      } else marker.setLatLng([pin.lat, pin.lng]);
+    } else if (marker) { marker.remove(); marker = null; }
+    // alleen opnieuw centreren als je van bedrijf wisselt
+    if (mapCompany !== companyId) {
+      map.setView(pin ? [pin.lat, pin.lng] : PORT_CENTER, pin ? 17 : 13);
+      mapCompany = companyId;
+    }
+  }
+  $('mapBox').addEventListener('toggle', () => {
+    if ($('mapBox').open && !window.L) $('mapHint').textContent = 'De kaart kon niet geladen worden. Ben je offline?';
+    mapCompany = null;
+    updateMap();
+  });
+  $('pinClear').addEventListener('click', () => {
+    if (!companyId || !confirm('Spelt voor dit bedrijf wissen?')) return;
+    delete companyPins[companyId];
+    save(KEY_CO_PIN, companyPins);
+    renderCompanyPicker(); render();
   });
 
   // --- formulier ----------------------------------------------------------
@@ -853,7 +938,7 @@ const APP_VERSION = '2026-10-02.3';
         `netto ± ${money(x.netto)}`,
         clothingLabel(e),
         e.kaai ? `kaai ${escapeHtml(e.kaai)}` : '',
-        addressOf(e.company) ? routeLink(addressOf(e.company)) : '',
+        routeLink(e.company),
         e.note ? escapeHtml(e.note) : '',
       ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
@@ -1159,7 +1244,7 @@ const APP_VERSION = '2026-10-02.3';
   }
   $('exportJson').addEventListener('click', () => {
     download(`werkuren-backup-${isoDate(new Date())}.json`,
-      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyAddresses }, null, 2), 'application/json');
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyAddresses, companyPins }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -1178,9 +1263,10 @@ const APP_VERSION = '2026-10-02.3';
       if (Array.isArray(data.purchases)) purchases = data.purchases;
       if (data.clothingStart) clothingStart = data.clothingStart;
       if (data.companyAddresses) companyAddresses = data.companyAddresses;
+      if (data.companyPins) companyPins = data.companyPins;
       save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
-      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_ADDR, companyAddresses);
+      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_ADDR, companyAddresses); save(KEY_CO_PIN, companyPins);
       renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';

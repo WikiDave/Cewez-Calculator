@@ -34,3 +34,7 @@ Volgens de Codex (artikel 39 en bijlage 11): 1 punt per gewerkte shift, 2 punten
 - Halve shift: nu gerekend als de helft van het shiftloon.
 - Overuren: nu exact per minuut gerekend (afronding nog te bevestigen).
 - Kledijpunten: de Codex geldt voor de pool; nog na te gaan of dezelfde regels gelden voor gelegenheidsarbeiders.
+
+## Kaart
+
+Per bedrijf kun je een spelt op de kaart zetten (satelliet of kaart) en verslepen naar de juiste kaai; de route-knop gaat dan naar die spelt. De kaart gebruikt [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2, in `vendor/leaflet/`) met tegels van OpenStreetMap en Esri World Imagery.
