@@ -69,6 +69,10 @@
   .li-main { flex: 1; min-width: 0; }
   .li-main .d { font-weight: 600; }
   .li-main .m { font-size: 13px; color: var(--muted); }
+  .where { font-size: 14px; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+  .where a, .li-main a { color: var(--accent); font-weight: 600; }
+  #coList li { align-items: flex-start; }
+  #coList input { min-height: 38px; padding: 6px 10px; margin-top: 6px; font-size: 14px; }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -227,6 +231,7 @@
         <button class="btn" id="coSave" type="button">Bedrijf toevoegen</button>
       </div>
     </div>
+    <p class="where" id="coWhere" hidden></p>
 
     <label for="kind">Soort</label>
     <select id="kind">
@@ -258,6 +263,9 @@
       </div>
       <p class="hint" id="tariffHint"></p>
 
+      <label for="kaai">Kaai</label>
+      <input id="kaai" placeholder="bv. 106">
+
       <label for="ot">Overuren (na 7u45), bv. 1u30 of 1,5</label>
       <input id="ot" inputmode="decimal" placeholder="0">
 
@@ -265,7 +273,7 @@
     </div>
 
     <label for="note">Notitie (optioneel)</label>
-    <input id="note" placeholder="bv. schip, kaai…">
+    <input id="note" placeholder="bv. schip…">
 
     <div class="preview"><span>Deze shift bruto<br><span class="net" id="previewNet"></span></span><b id="preview">€ 0,00</b></div>
     <button class="btn" id="add">Opslaan</button>
@@ -404,7 +412,7 @@
   <section class="card">
     <details class="fold" data-fold="bedrijven">
       <summary><h2>Bedrijven beheren</h2></summary>
-      <p class="hint">Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
+      <p class="hint">Vul per bedrijf het adres in waar je moet zijn; het verschijnt bij de dag, met een knop voor de route. Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
       <ul class="list" id="coList"></ul>
       <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
     </details>
@@ -445,11 +453,11 @@
   </section>
 </main>
 
-<script src="loon.js?v=2026-10-02.2"></script>
+<script src="loon.js?v=2026-10-02.3"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.2';
+const APP_VERSION = '2026-10-02.3';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -496,6 +504,10 @@ const APP_VERSION = '2026-10-02.2';
     ['ecs', 'ECS 2XL', 'ECS 2XL'],
     ['hoppe', 'Hoppe', 'Hoppe'],
   ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
+  // adres waar je je moet aanmelden (bevestigd); aanvulbaar per bedrijf in "Bedrijven beheren"
+  const DEFAULT_ADDRESSES = {
+    cldn: 'Hendrik van Minderhoutstraat 50, 8380 Zeebrugge',
+  };
   const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
   const ROW_NAMES = { ZA: 'zaterdagtarief', ZO: 'zon- en feestdagtarief' };
 
@@ -512,6 +524,7 @@ const APP_VERSION = '2026-10-02.2';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
+  const KEY_CO_ADDR = 'haven-werkuren.companyAddresses';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -540,6 +553,7 @@ const APP_VERSION = '2026-10-02.2';
   let showMode = load(KEY_MODE, 'bruto');
   let purchases = load(KEY_PURCHASES, []);
   let clothingStart = load(KEY_CLOTH_START, { date: '', points: 0 });
+  let companyAddresses = load(KEY_CO_ADDR, {});
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -611,6 +625,10 @@ const APP_VERSION = '2026-10-02.2';
     return `<span class="logo ${cls}" title="${escapeHtml(n)}">${escapeHtml(initials(n))}</span>`;
   }
 
+  const addressOf = (id) => (id in companyAddresses ? companyAddresses[id] : DEFAULT_ADDRESSES[id]) || '';
+  const mapsUrl = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const routeLink = (address) => `<a href="${mapsUrl(address)}" target="_blank" rel="noopener">Route</a>`;
+
   function renderCompanyPicker() {
     if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
     // meest gebruikte bedrijven eerst
@@ -631,8 +649,16 @@ const APP_VERSION = '2026-10-02.2';
         ${logoHtml(c.id)}<span>${escapeHtml(c.short || c.name)}</span></button>`).join('')
       + toggle + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
 
+    const sel = companyById(companyId);
+    const addr = addressOf(companyId);
+    $('coWhere').hidden = !sel;
+    $('coWhere').innerHTML = !sel ? ''
+      : addr ? `${escapeHtml(sel.name)}: ${escapeHtml(addr)} · ${routeLink(addr)}`
+      : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren.`;
+
     $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
-        <div class="li-main"><div class="d">${escapeHtml(c.name)}</div></div>
+        <div class="li-main"><div class="d">${escapeHtml(c.name)}</div>
+          <input data-addr="${c.id}" value="${escapeHtml(addressOf(c.id))}" placeholder="Adres waar je moet zijn" aria-label="Adres ${escapeHtml(c.name)}"></div>
         <button class="del" data-delco="${c.id}" aria-label="Verwijderen">✕</button></li>`).join('')
       : '<li class="empty">Geen bedrijven.</li>');
     $('coRestore').hidden = !hiddenCompanies.length;
@@ -687,6 +713,13 @@ const APP_VERSION = '2026-10-02.2';
     save(KEY_HIDDEN_CO, hiddenCompanies);
     renderCompanyPicker();
   });
+  $('coList').addEventListener('change', (ev) => {
+    const id = ev.target.closest('[data-addr]')?.dataset.addr;
+    if (!id) return;
+    companyAddresses[id] = ev.target.value.trim();
+    save(KEY_CO_ADDR, companyAddresses);
+    renderCompanyPicker(); render();
+  });
   $('coRestore').addEventListener('click', () => {
     hiddenCompanies = [];
     save(KEY_HIDDEN_CO, hiddenCompanies);
@@ -704,7 +737,7 @@ const APP_VERSION = '2026-10-02.2';
       id: '__preview',
       date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value,
       wijziging: $('wijziging').checked,
-      company: companyId, companyName: companyById(companyId)?.name || '',
+      company: companyId, companyName: companyById(companyId)?.name || '', kaai: $('kaai').value.trim(),
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
     };
   }
@@ -734,7 +767,7 @@ const APP_VERSION = '2026-10-02.2';
     entries.push(e);
     save(KEY_ENTRIES, entries);
     save(KEY_LAST_WORK, e.work);
-    $('ot').value = ''; $('note').value = ''; $('wijziging').checked = false;
+    $('ot').value = ''; $('note').value = ''; $('kaai').value = ''; $('wijziging').checked = false;
     $('kind').value = 'full'; $('tariff').value = 'auto';
     renderCompanyPicker();
     render();
@@ -819,6 +852,8 @@ const APP_VERSION = '2026-10-02.2';
         e.wijziging ? 'wijzigingsvergoeding' : '',
         `netto ± ${money(x.netto)}`,
         clothingLabel(e),
+        e.kaai ? `kaai ${escapeHtml(e.kaai)}` : '',
+        addressOf(e.company) ? routeLink(addressOf(e.company)) : '',
         e.note ? escapeHtml(e.note) : '',
       ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
@@ -1124,7 +1159,7 @@ const APP_VERSION = '2026-10-02.2';
   }
   $('exportJson').addEventListener('click', () => {
     download(`werkuren-backup-${isoDate(new Date())}.json`,
-      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart }, null, 2), 'application/json');
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyAddresses }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -1142,19 +1177,20 @@ const APP_VERSION = '2026-10-02.2';
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
       if (Array.isArray(data.purchases)) purchases = data.purchases;
       if (data.clothingStart) clothingStart = data.clothingStart;
+      if (data.companyAddresses) companyAddresses = data.companyAddresses;
       save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
-      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart);
+      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_ADDR, companyAddresses);
       renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Bedrijf', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
+    const rows = [['Datum', 'Bedrijf', 'Kaai', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
       const x = shiftOf(e);
-      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
+      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', e.kaai || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     download(`werkuren-${viewYear}-${pad(viewMonth + 1)}.csv`, '﻿' + csv, 'text/csv');
