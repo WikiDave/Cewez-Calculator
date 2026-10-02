@@ -469,11 +469,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.4"></script>
+<script src="loon.js?v=2026-10-02.5"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.4';
+const APP_VERSION = '2026-10-02.5';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -755,6 +755,13 @@ const APP_VERSION = '2026-10-02.4';
 
   // --- kaai op de kaart (Leaflet) ------------------------------------------
   const PORT_CENTER = [51.335, 3.205]; // haven van Zeebrugge
+  // vaste paden voor de spelt (Leaflet raadt ze anders af uit de css, wat niet overal lukt)
+  const PIN_ICONS = {
+    icon: 'vendor/leaflet/images/marker-icon.png',
+    retina: 'vendor/leaflet/images/marker-icon-2x.png',
+    shadow: 'vendor/leaflet/images/marker-shadow.png',
+  };
+  let tilesFailed = false;
   let map = null, marker = null, mapCompany = null;
   function ensureMap() {
     if (map || !window.L) return !!map;
@@ -765,6 +772,13 @@ const APP_VERSION = '2026-10-02.4';
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics',
     });
+    for (const layer of [streets, satellite]) {
+      layer.on('tileerror', () => {
+        if (tilesFailed) return;
+        tilesFailed = true;
+        $('mapHint').textContent = 'De kaartbeelden konden niet geladen worden. Controleer je internetverbinding. Een spelt zetten lukt wel.';
+      });
+    }
     satellite.addTo(map);
     L.control.layers({ Satelliet: satellite, Kaart: streets }, null, { position: 'topright' }).addTo(map);
     map.on('click', (ev) => setPin(ev.latlng));
@@ -779,7 +793,7 @@ const APP_VERSION = '2026-10-02.4';
   function updateMap() {
     const sel = companyById(companyId);
     const pin = companyPins[companyId];
-    $('mapHint').textContent = !sel ? ''
+    if (!tilesFailed) $('mapHint').textContent = !sel ? ''
       : pin ? `Sleep de spelt om de plaats van ${sel.name} te verbeteren.`
       : `Tik op de kaart waar je moet zijn bij ${sel.name}. Daarna kun je de spelt verslepen.`;
     $('pinRoute').href = routeUrl(companyId) || '#';
@@ -789,7 +803,11 @@ const APP_VERSION = '2026-10-02.4';
     map.invalidateSize();
     if (pin) {
       if (!marker) {
-        marker = L.marker([pin.lat, pin.lng], { draggable: true }).addTo(map);
+        const icon = L.icon({
+          iconUrl: PIN_ICONS.icon, iconRetinaUrl: PIN_ICONS.retina, shadowUrl: PIN_ICONS.shadow,
+          iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41],
+        });
+        marker = L.marker([pin.lat, pin.lng], { draggable: true, icon }).addTo(map);
         marker.on('dragend', () => setPin(marker.getLatLng()));
       } else marker.setLatLng([pin.lat, pin.lng]);
     } else if (marker) { marker.remove(); marker = null; }
