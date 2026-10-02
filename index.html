@@ -76,6 +76,20 @@
   }
   .empty { color: var(--muted); text-align: center; padding: 16px 0 4px; }
   details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  /* inklapbare kaarten: titel met pijltje rechts */
+  details.fold > summary {
+    list-style: none; display: flex; align-items: center; gap: 8px; min-height: 28px;
+  }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary h2 { flex: 1; margin: 0; }
+  details.fold > summary::after {
+    content: ""; width: 9px; height: 9px; flex: none; margin-right: 4px;
+    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg) translateY(-3px); transition: transform .15s;
+  }
+  details.fold[open] > summary::after { transform: rotate(-135deg) translateY(-3px); }
+  details.fold[open] > summary { margin-bottom: 12px; }
+  @media (prefers-reduced-motion: reduce) { details.fold > summary::after { transition: none; } }
   .ptabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .ptabs button {
     border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px;
@@ -195,7 +209,8 @@
   </section>
 
   <section class="card" id="dayCard">
-    <h2 id="dayTitle"></h2>
+    <details class="fold" data-fold="dag" open>
+      <summary><h2 id="dayTitle"></h2></summary>
     <p class="hint" id="dayNote" hidden></p>
     <ul class="list" id="list"></ul>
     <input type="hidden" id="date">
@@ -254,10 +269,12 @@
 
     <div class="preview"><span>Deze shift bruto<br><span class="net" id="previewNet"></span></span><b id="preview">€ 0,00</b></div>
     <button class="btn" id="add">Opslaan</button>
+    </details>
   </section>
 
-  <section class="card">
-    <h2 id="sumTitle"></h2>
+  <section class="card" id="sumCard">
+    <details class="fold" data-fold="overzicht" open>
+      <summary><h2 id="sumTitle"></h2></summary>
     <div class="totals">
       <div class="stat big"><div class="k">Bruto deze maand</div><div class="v" id="tTotal"></div></div>
       <div class="stat big"><div class="k">Netto deze maand <span class="est" id="tNetEst" hidden>schatting</span></div><div class="v" id="tNet"></div></div>
@@ -266,15 +283,19 @@
     </div>
     <ul class="list" id="perCo"></ul>
     <p class="hint" id="yearLine"></p>
+    </details>
   </section>
 
-  <section class="card">
-    <h2>Uitbetalingen</h2>
+  <section class="card" id="slipCard">
+    <details class="fold" data-fold="uitbetalingen" open>
+      <summary><h2>Uitbetalingen</h2></summary>
     <div id="slips"></div>
+    </details>
   </section>
 
   <section class="card" id="clothCard">
-    <h2>Kledijpunten</h2>
+    <details class="fold" data-fold="kledij" open>
+      <summary><h2>Kledijpunten</h2></summary>
     <div class="totals">
       <div class="stat big"><div class="k">Saldo <span id="clMax"></span></div><div class="v" id="clBalance"></div></div>
     </div>
@@ -297,11 +318,12 @@
         <div><label for="clStartDate">Op datum</label><input type="date" id="clStartDate"></div>
       </div>
     </details>
+    </details>
   </section>
 
   <section class="card">
-    <details id="settingsBox">
-      <summary>Netto-instellingen</summary>
+    <details class="fold" data-fold="netto" id="settingsBox">
+      <summary><h2>Netto-instellingen</h2></summary>
       <p class="hint">Hiermee rekent de app je netto uit. Je gegevens blijven op dit toestel.</p>
       <label for="sStatus">Statuut</label>
       <select id="sStatus" data-s="status">
@@ -367,8 +389,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Feestdagen</summary>
+    <details class="fold" data-fold="feestdagen">
+      <summary><h2>Feestdagen</h2></summary>
       <p class="hint">Op de dag waarop de haven een feestdag viert, geldt het zon- en feestdagtarief. Valt een feestdag in het weekend, vul dan de vervangingsdag in.</p>
       <div class="yearbar">
         <button id="holPrev" aria-label="Vorig jaar">‹</button>
@@ -380,8 +402,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Bedrijven beheren</summary>
+    <details class="fold" data-fold="bedrijven">
+      <summary><h2>Bedrijven beheren</h2></summary>
       <p class="hint">Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
       <ul class="list" id="coList"></ul>
       <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
@@ -389,8 +411,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Tarieven</summary>
+    <details class="fold" data-fold="tarieven">
+      <summary><h2>Tarieven</h2></summary>
       <p class="hint">Elke dag wordt berekend met de tarieven die op die datum golden. Pas je een datum of bedrag aan, dan worden alle dagen opnieuw berekend.</p>
       <div class="ptabs" id="periodTabs"></div>
       <div id="periodFromWrap">
@@ -410,8 +432,8 @@
   </section>
 
   <section class="card">
-    <details>
-      <summary>Back-up &amp; export</summary>
+    <details class="fold" data-fold="backup">
+      <summary><h2>Back-up &amp; export</h2></summary>
       <p class="hint">Je gegevens staan alleen op dit toestel, in deze browser. Maak af en toe een back-up.</p>
       <div class="tools">
         <button class="btn ghost" id="exportJson">Back-up downloaden</button>
@@ -423,11 +445,11 @@
   </section>
 </main>
 
-<script src="loon.js?v=2026-10-02.1"></script>
+<script src="loon.js?v=2026-10-02.2"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.1';
+const APP_VERSION = '2026-10-02.2';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -489,6 +511,7 @@ const APP_VERSION = '2026-10-02.1';
   const KEY_LAST_WORK = 'haven-werkuren.lastWork';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
+  const KEY_FOLDS = 'haven-werkuren.folds';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
   };
@@ -744,7 +767,10 @@ const APP_VERSION = '2026-10-02.1';
     const d = new Date(iso + 'T12:00');
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
     render();
-    if (scroll) $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scroll) {
+      document.querySelector('[data-fold="dag"]').open = true;
+      $('dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function renderCalendar() {
@@ -1159,6 +1185,12 @@ const APP_VERSION = '2026-10-02.1';
 
   save(KEY_ENTRIES, entries);
   save(KEY_PERIODS, periods);
+  // welke kaarten open of dicht staan, onthouden
+  const folds = load(KEY_FOLDS, {});
+  for (const d of document.querySelectorAll('details.fold')) {
+    if (d.dataset.fold in folds) d.open = folds[d.dataset.fold];
+    d.addEventListener('toggle', () => { folds[d.dataset.fold] = d.open; save(KEY_FOLDS, folds); });
+  }
   renderCompanyPicker();
   fillCodes();
   $('work').value = load(KEY_LAST_WORK, 'other');
