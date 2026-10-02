@@ -482,11 +482,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.6"></script>
+<script src="loon.js?v=2026-10-02.7"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.6';
+const APP_VERSION = '2026-10-02.7';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -883,9 +883,15 @@ const APP_VERSION = '2026-10-02.6';
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics',
     });
+    // één mislukt kaartbeeld kan altijd; enkel melden als er helemaal niets laadt
+    let tilesLoaded = 0;
     for (const layer of [streets, satellite]) {
+      layer.on('tileload', () => {
+        tilesLoaded++;
+        if (tilesFailed) { tilesFailed = false; updateMap(); }
+      });
       layer.on('tileerror', () => {
-        if (tilesFailed) return;
+        if (tilesLoaded || tilesFailed) return;
         tilesFailed = true;
         $('mapHint').textContent = 'De kaartbeelden konden niet geladen worden. Controleer je internetverbinding. Een spelt zetten lukt wel.';
       });
