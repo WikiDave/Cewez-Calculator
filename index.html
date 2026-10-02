@@ -118,6 +118,10 @@
   dialog.sheet ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
   dialog.sheet section { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
   dialog.sheet section.mine { background: var(--accent-soft); border: 0; border-radius: 12px; padding: 12px; }
+  .qr { margin: 12px 0; text-align: center; }
+  /* QR-code altijd donker op wit, ook in donkere modus, anders scant hij slecht */
+  .qr img { width: 180px; height: 180px; max-width: 100%; background: #fff; padding: 6px; border-radius: 12px; border: 1px solid var(--line); }
+  .qr figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; word-break: break-all; }
   .sheet-x { position: absolute; top: 10px; right: 10px; margin: 0; }
   .sheet-x button {
     width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); color: var(--text);
@@ -295,7 +299,11 @@
 
     <section>
       <h3>Delen met een collega</h3>
-      <p>Stuur de link door. Iedereen krijgt zijn eigen, lege app: jouw uren en je loon blijven op jouw gsm.</p>
+      <p>Laat je collega deze code scannen met de camera van de gsm, of stuur de link door. Iedereen krijgt zijn eigen, lege app: jouw uren en je loon blijven op jouw gsm.</p>
+      <figure class="qr">
+        <img src="icons/qr-app.png" alt="QR-code met de link naar Haven Werkuren" width="180" height="180">
+        <figcaption>wikidave.github.io/Cewez-Calculator</figcaption>
+      </figure>
       <button type="button" class="btn ghost" id="shareBtn">Link delen</button>
       <p class="hint" id="shareMsg" hidden></p>
     </section>
@@ -581,11 +589,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.11"></script>
+<script src="loon.js?v=2026-10-02.12"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.11';
+const APP_VERSION = '2026-10-02.12';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
