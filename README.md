@@ -20,6 +20,10 @@ Tests (met een echte loonbrief van augustus 2026 die tot op de cent moet kloppen
 node --test
 ```
 
+## Functies
+
+Functieloon volgens de Codex (artikel 31): basisloon alle werk van de shift plus 1× overuurloon (chauffeurs: tugmaster, heftruck, bobcat, unimog, empty container handler, hoogwerker, tugmaster kaai, verreiker), 2× uurloon (bull, heftruck +20 ton, reachstacker, giekkraan −20 ton, hydraulische kraan) of 2× overuurloon (straddle carrier, portaalkraan, giekkraan +20 ton, RMG/RTG). High/heavy chauffeur = alle werk.
+
 ## Kledijpunten
 
 Volgens de Codex (artikel 39 en bijlage 11): 1 punt per gewerkte shift, 2 punten voor lashing roro, container en high & heavy; saldo afgetopt op 300. Vul het saldo van je loonbrief in als vertrekpunt; afgehaalde kledij gaat van het saldo af.
@@ -33,6 +37,7 @@ Volgens de Codex (artikel 39 en bijlage 11): 1 punt per gewerkte shift, 2 punten
 - Of wijzigings- en afbestelvergoeding onder RSZ vallen (instelbaar).
 - Halve shift: nu gerekend als de helft van het shiftloon.
 - Overuren: nu exact per minuut gerekend (afronding nog te bevestigen).
+- Functies: overuren worden nog aan het overuurtarief alle werk gerekend; foreman, ceelbaas en andere functies (jumbo, markeerder, stouwer, telescopische kraan) staan er nog niet in.
 - Kledijpunten: de Codex geldt voor de pool; nog na te gaan of dezelfde regels gelden voor gelegenheidsarbeiders.
 
 ## Kaart

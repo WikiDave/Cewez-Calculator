@@ -155,3 +155,20 @@ test('kledijartikelen uit bijlage 11', () => {
   assert.equal(parka.pack, 'minimum');
   assert.equal(new Set(Loon.CLOTHING_ITEMS.map((i) => i.id)).size, Loon.CLOTHING_ITEMS.length);
 });
+
+test('functielonen volgens Codex art. 31', () => {
+  const wage = (date, code, func) => Loon.shiftLines(shift(date, code, { func }), ctx()).lines.find((l) => l.key === 'shiftloon').amount;
+  assert.equal(wage('2026-10-06', '08', 'alle'), 180.12);
+  assert.equal(wage('2026-10-06', '08', 'highheavy'), 180.12);       // als alle werk
+  assert.equal(wage('2026-10-06', '08', 'tugmaster'), 217.38);       // 180,12 + 37,26
+  assert.equal(wage('2026-10-06', '08', 'reachstacker'), 229.80);    // 180,12 + 2 x 24,84
+  assert.equal(wage('2026-10-06', '08', 'straddle'), 254.64);        // 180,12 + 2 x 37,26
+  assert.equal(wage('2026-10-10', '08', 'tugmaster'), 326.09);       // zaterdag: 270,18 + 55,91
+  const half = Loon.shiftLines(shift('2026-10-06', '08', { func: 'tugmaster', kind: 'half' }), ctx()).lines.find((l) => l.key === 'shiftloon');
+  assert.equal(half.amount, 108.69);
+});
+
+test('oudere tarieventabel zonder uurloon', () => {
+  const old = [{ from: '', values: Object.fromEntries(Object.entries(Loon.DEFAULT_RATE_PERIODS[1].values).map(([k, v]) => [k, { shift: v.shift, overuur: v.overuur }])) }];
+  assert.equal(Loon.rateFor(old, '2026-10-06', '08').uur, 24.84);
+});
