@@ -79,6 +79,15 @@
   #map { height: 320px; border-radius: 10px; margin-top: 8px; border: 1px solid var(--line); z-index: 0; }
   a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
   a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+  /* plaats: naam en adres onder elkaar, verwijderknop rechts */
+  .locrow {
+    display: grid; grid-template-columns: 1fr 36px; gap: 4px 6px; align-items: center;
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+  }
+  .locrow input { margin-top: 0 !important; grid-column: 1; }
+  .locrow input[data-field="name"] { font-weight: 600; }
+  .locrow .del { grid-column: 2; grid-row: 1 / span 2; }
+  .linkbtn { border: 0; background: transparent; color: var(--accent); font-weight: 600; padding: 8px 0; cursor: pointer; }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -236,6 +245,10 @@
         <button class="btn ghost" id="coCancel" type="button">Annuleren</button>
         <button class="btn" id="coSave" type="button">Bedrijf toevoegen</button>
       </div>
+    </div>
+    <div id="locWrap" hidden>
+      <label for="loc">Plaats / terminal</label>
+      <select id="loc"></select>
     </div>
     <p class="where" id="coWhere" hidden></p>
     <details class="mapbox" id="mapBox" hidden>
@@ -427,7 +440,7 @@
   <section class="card">
     <details class="fold" data-fold="bedrijven">
       <summary><h2>Bedrijven beheren</h2></summary>
-      <p class="hint">Vul per bedrijf het adres in waar je moet zijn; het verschijnt bij de dag, met een knop voor de route. Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
+      <p class="hint">Per bedrijf staan de plaatsen (kantoor, terminal, kaai) met hun adres. Pas ze aan of voeg er toe; bij een dag kies je de plaats en zet je op de kaart een spelt per plaats. Verwijderen haalt het bedrijf alleen uit de keuzelijst; dagen die je al opgeslagen hebt, blijven bewaard.</p>
       <ul class="list" id="coList"></ul>
       <button class="btn ghost" id="coRestore" hidden>Verwijderde bedrijven terugzetten</button>
     </details>
@@ -469,11 +482,11 @@
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.5"></script>
+<script src="loon.js?v=2026-10-02.6"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.5';
+const APP_VERSION = '2026-10-02.6';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -520,10 +533,45 @@ const APP_VERSION = '2026-10-02.5';
     ['ecs', 'ECS 2XL', 'ECS 2XL'],
     ['hoppe', 'Hoppe', 'Hoppe'],
   ].map(([id, name, short, file]) => ({ id, name, short, logo: `logos/${file || id}.png` }));
-  // adres waar je je moet aanmelden (bevestigd); aanvulbaar per bedrijf in "Bedrijven beheren"
-  const DEFAULT_ADDRESSES = {
-    cldn: 'Hendrik van Minderhoutstraat 50, 8380 Zeebrugge',
-  };
+  // Plaatsen per bedrijf: [id, naam, adres]. Adressen uit de Codex (bijlage 12) en de sites van de
+  // terminals; aanpasbaar in "Bedrijven beheren". Zet per plaats een spelt voor de juiste kaai.
+  const DEFAULT_LOCATIONS = Object.fromEntries(Object.entries({
+    'sea-invest': [['bnfw', 'Belgian New Fruit Wharf (kaai 404)', 'Kiwiweg 120, 8380 Zeebrugge']],
+    'van-der-vlist': [['zetel', 'Van der Vlist Belgium', 'Koggenstraat 15, 8380 Zeebrugge']],
+    verhelst: [['zetel', 'Verhelst Port Operators', 'Stationstraat 30, 8460 Oudenburg']],
+    zfl: [['zetel', 'Zeebrugge Food Logistics', 'Noordzeestraat 201, 8380 Zeebrugge']],
+    intertrans: [['zetel', 'Intertrans', 'Loodswezenstraat 1, 8380 Zeebrugge']],
+    logghe: [['zetel', 'Logghe-Ve.co', 'Oudenburgsesteenweg 87, 8400 Oostende']],
+    minne: [
+      ['exploitatie', 'Exploitatie', 'Krakeleweg 40, 8000 Brugge'],
+      ['zetel', 'Zetel', 'Sint-Hubertuslaan 49, 8200 Brugge'],
+    ],
+    ndq: [['zetel', 'NDQ', 'Koffieweg 2, 8380 Zeebrugge']],
+    ossco: [['zetel', 'OSSCO', 'Slijkensesteenweg 2, 8400 Oostende']],
+    'po-ferries': [['zetel', 'P&O North Sea Ferries', 'Leopold II-dam 13, 8380 Zeebrugge']],
+    psa: [['zip', 'ZIP-terminal (kaai 140–143)', 'Caxtonweg, Kaai 140-143, 8380 Zeebrugge']],
+    sst: [['zetel', 'Seaport Shipping & Trading', 'Britse Kaai 10, 8000 Brugge']],
+    seabridge: [['zetel', 'Seabridge', 'Koffieweg 10, 8380 Zeebrugge']],
+    wwl: [['k530', 'Terminal kaai 530', 'Alfred Ronsestraat 100, 8380 Zeebrugge']],
+    ico: [
+      ['noord', 'Noordelijke Insteek (kaai 405–410)', 'Noordelijke Insteek, 8380 Zeebrugge'],
+      ['zuid', 'Zuidelijke Insteek (kaai 501–525)', 'Zuidelijke Insteek, 8380 Zeebrugge'],
+      ['kantoor', 'Kantoor', 'Margaretha van Oostenrijkstraat 1, 8380 Zeebrugge'],
+    ],
+    cldn: [
+      ['kantoor', 'Kantoor', 'Hendrik van Minderhoutstraat 50, 8380 Zeebrugge'],
+      ['canadakaai', 'Canadakaai', 'Canadakaai, 8380 Zeebrugge'],
+      ['britannia', 'Britannia-dok', 'Britannia-dok, 8380 Zeebrugge'],
+      ['zweedse', 'Zweedse Kaai', 'Zweedse Kaai, 8380 Zeebrugge'],
+      ['albert2', 'Albert II-dok', 'Albert II-dok, 8380 Zeebrugge'],
+    ],
+    borlix: [['zetel', 'Borlix', 'Lanceloot Blondeellaan 15, 8380 Zeebrugge']],
+    cosco: [['k120', 'CSP-terminal (kaai 120)', 'Leopold II-dam, Kaai 120, 8380 Zeebrugge']],
+    depre: [['zetel', 'Depre Storage & Handling', 'Britse Kaai 8, 8000 Brugge']],
+    'dp-world': [['codex', 'Volgens Codex (Antwerpen, nakijken)', 'Molenweg-haven 1950, 9130 Kallo']],
+    ecs: [['zetel', '2XL - ECS', 'Baron de Maerelaan 155, 8380 Zeebrugge']],
+    hoppe: [['zetel', 'Hoppe Ship Agencies', 'Leopold II-dam 35, 8380 Zeebrugge']],
+  }).map(([co, list]) => [co, list.map(([id, name, address]) => ({ id, name, address }))]));
   const SHOW_COMPANIES = 7; // zoveel bedrijven tonen voor "Alle bedrijven"
   const ROW_NAMES = { ZA: 'zaterdagtarief', ZO: 'zon- en feestdagtarief' };
 
@@ -540,7 +588,9 @@ const APP_VERSION = '2026-10-02.5';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
-  const KEY_CO_ADDR = 'haven-werkuren.companyAddresses';
+  const KEY_CO_ADDR = 'haven-werkuren.companyAddresses'; // oud: één adres per bedrijf
+  const KEY_CO_LOCS = 'haven-werkuren.companyLocations';
+  const KEY_LAST_LOC = 'haven-werkuren.lastLocation';
   const KEY_CO_PIN = 'haven-werkuren.companyPins';
   const load = (k, fallback) => {
     try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
@@ -570,8 +620,27 @@ const APP_VERSION = '2026-10-02.5';
   let showMode = load(KEY_MODE, 'bruto');
   let purchases = load(KEY_PURCHASES, []);
   let clothingStart = load(KEY_CLOTH_START, { date: '', points: 0 });
-  let companyAddresses = load(KEY_CO_ADDR, {});
-  let companyPins = load(KEY_CO_PIN, {});
+  let companyLocations = load(KEY_CO_LOCS, {}); // door jou aangepaste plaatsen per bedrijf
+  let companyPins = load(KEY_CO_PIN, {});         // spelden per plaats: "bedrijf/plaats"
+  let lastLocation = load(KEY_LAST_LOC, {});      // laatst gekozen plaats per bedrijf
+  // oudere gegevens: één adres en één spelt per bedrijf omzetten naar de eerste plaats
+  (() => {
+    const old = load(KEY_CO_ADDR, null);
+    for (const [co, address] of Object.entries(old || {})) {
+      if (co in companyLocations) continue;
+      const list = structuredClone(DEFAULT_LOCATIONS[co] || []);
+      if (list.length) list[0].address = address;
+      else if (address) list.push({ id: 'adres', name: 'Adres', address });
+      companyLocations[co] = list;
+    }
+    for (const key of Object.keys(companyPins)) {
+      if (key.includes('/')) continue;
+      const first = (companyLocations[key] || DEFAULT_LOCATIONS[key] || [])[0];
+      companyPins[`${key}/${first ? first.id : 'main'}`] = companyPins[key];
+      delete companyPins[key];
+    }
+    if (old) { save(KEY_CO_LOCS, companyLocations); save(KEY_CO_PIN, companyPins); try { localStorage.removeItem(KEY_CO_ADDR); } catch {} }
+  })();
   let editPeriod = periods.length - 1;
   let customCompanies = load(KEY_CUSTOM_CO, []);
   let hiddenCompanies = load(KEY_HIDDEN_CO, []);
@@ -643,15 +712,23 @@ const APP_VERSION = '2026-10-02.5';
     return `<span class="logo ${cls}" title="${escapeHtml(n)}">${escapeHtml(initials(n))}</span>`;
   }
 
-  const addressOf = (id) => (id in companyAddresses ? companyAddresses[id] : DEFAULT_ADDRESSES[id]) || '';
+  const locationsOf = (co) => companyLocations[co] || DEFAULT_LOCATIONS[co] || [];
+  const locationOf = (co, loc) => locationsOf(co).find((l) => l.id === loc);
+  // gekozen plaats van het gekozen bedrijf (de laatst gebruikte, anders de eerste)
+  const currentLoc = () => (locationOf(companyId, lastLocation[companyId]) || locationsOf(companyId)[0])?.id || 'main';
+  const placeKey = (co, loc) => `${co}/${loc || 'main'}`;
   // route naar de spelt als die gezet is, anders naar het adres
-  function routeUrl(id) {
-    const pin = companyPins[id];
+  function routeUrl(co, loc) {
+    const pin = companyPins[placeKey(co, loc)];
     if (pin) return `https://www.google.com/maps/dir/?api=1&destination=${pin.lat},${pin.lng}`;
-    const addr = addressOf(id);
+    const addr = locationOf(co, loc)?.address;
     return addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
   }
-  const routeLink = (id) => (routeUrl(id) ? `<a href="${routeUrl(id)}" target="_blank" rel="noopener">Route</a>` : '');
+  const routeLink = (co, loc) => (routeUrl(co, loc) ? `<a href="${routeUrl(co, loc)}" target="_blank" rel="noopener">Route</a>` : '');
+  function saveLocations(co, list) {
+    companyLocations[co] = list;
+    save(KEY_CO_LOCS, companyLocations);
+  }
 
   function renderCompanyPicker() {
     if (companyId && hiddenCompanies.includes(companyId)) companyId = '';
@@ -674,19 +751,30 @@ const APP_VERSION = '2026-10-02.5';
       + toggle + '<button type="button" class="co add" id="coAdd"><span class="logo">+</span><span>Nieuw</span></button>';
 
     const sel = companyById(companyId);
-    const addr = addressOf(companyId);
+    const locs = sel ? locationsOf(companyId) : [];
+    const loc = currentLoc();
+    $('locWrap').hidden = locs.length < 2;
+    $('loc').innerHTML = locs.map((l) => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.name)}</option>`).join('');
+    if (locs.length) $('loc').value = loc;
+    const place = locationOf(companyId, loc);
+    const pinned = !!companyPins[placeKey(companyId, loc)];
     $('coWhere').hidden = !sel;
-    const pinned = !!companyPins[companyId];
     $('coWhere').innerHTML = !sel ? ''
-      : addr || pinned ? `${escapeHtml(sel.name)}: ${escapeHtml(addr || 'eigen spelt op de kaart')}${pinned && addr ? ' · spelt gezet' : ''} · ${routeLink(companyId)}`
-      : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren, of zet een spelt op de kaart.`;
+      : place?.address || pinned
+        ? `${escapeHtml(place?.name || sel.name)}: ${escapeHtml(place?.address || 'eigen spelt op de kaart')}${pinned && place?.address ? ' · spelt gezet' : ''} · ${routeLink(companyId, loc)}`
+        : `Nog geen adres voor ${escapeHtml(sel.name)}. Vul het in bij Bedrijven beheren, of zet een spelt op de kaart.`;
     $('mapBox').hidden = !sel;
     updateMap();
 
     $('coList').innerHTML = (all.length ? all.map((c) => `<li>${logoHtml(c.id, '', 'li-logo')}
         <div class="li-main"><div class="d">${escapeHtml(c.name)}</div>
-          <input data-addr="${c.id}" value="${escapeHtml(addressOf(c.id))}" placeholder="Adres waar je moet zijn" aria-label="Adres ${escapeHtml(c.name)}"></div>
-        <button class="del" data-delco="${c.id}" aria-label="Verwijderen">✕</button></li>`).join('')
+          ${locationsOf(c.id).map((l) => `<div class="locrow">
+            <input data-co="${c.id}" data-loc="${escapeHtml(l.id)}" data-field="name" value="${escapeHtml(l.name)}" placeholder="Naam (bv. kaai of terminal)" aria-label="Naam plaats">
+            <input data-co="${c.id}" data-loc="${escapeHtml(l.id)}" data-field="address" value="${escapeHtml(l.address)}" placeholder="Adres" aria-label="Adres plaats">
+            <button type="button" class="del" data-delloc="${escapeHtml(l.id)}" data-co="${c.id}" aria-label="Plaats verwijderen">✕</button>
+          </div>`).join('')}
+          <button type="button" class="linkbtn" data-addloc="${c.id}">+ Plaats toevoegen</button></div>
+        <button class="del" data-delco="${c.id}" aria-label="Bedrijf verwijderen">✕</button></li>`).join('')
       : '<li class="empty">Geen bedrijven.</li>');
     $('coRestore').hidden = !hiddenCompanies.length;
   }
@@ -741,11 +829,34 @@ const APP_VERSION = '2026-10-02.5';
     renderCompanyPicker();
   });
   $('coList').addEventListener('change', (ev) => {
-    const id = ev.target.closest('[data-addr]')?.dataset.addr;
-    if (!id) return;
-    companyAddresses[id] = ev.target.value.trim();
-    save(KEY_CO_ADDR, companyAddresses);
+    const el = ev.target.closest('[data-field]');
+    if (!el) return;
+    const co = el.dataset.co;
+    const list = structuredClone(locationsOf(co));
+    const l = list.find((x) => x.id === el.dataset.loc);
+    if (!l) return;
+    l[el.dataset.field] = el.value.trim();
+    saveLocations(co, list);
     renderCompanyPicker(); render();
+  });
+  $('coList').addEventListener('click', (ev) => {
+    const add = ev.target.closest('[data-addloc]');
+    const del = ev.target.closest('[data-delloc]');
+    if (add) {
+      const co = add.dataset.addloc;
+      saveLocations(co, [...structuredClone(locationsOf(co)), { id: 'p' + Date.now().toString(36), name: '', address: '' }]);
+      renderCompanyPicker();
+      const inputs = $('coList').querySelectorAll(`[data-co="${co}"][data-field="name"]`);
+      inputs[inputs.length - 1]?.focus();
+    } else if (del) {
+      const co = del.dataset.co, loc = del.dataset.delloc;
+      const l = locationOf(co, loc);
+      if (!confirm(`Plaats "${l?.name || 'zonder naam'}" verwijderen?`)) return;
+      saveLocations(co, locationsOf(co).filter((x) => x.id !== loc));
+      delete companyPins[placeKey(co, loc)];
+      save(KEY_CO_PIN, companyPins);
+      renderCompanyPicker(); render();
+    }
   });
   $('coRestore').addEventListener('click', () => {
     hiddenCompanies = [];
@@ -762,7 +873,7 @@ const APP_VERSION = '2026-10-02.5';
     shadow: 'vendor/leaflet/images/marker-shadow.png',
   };
   let tilesFailed = false;
-  let map = null, marker = null, mapCompany = null;
+  let map = null, marker = null, mapPlace = null;
   function ensureMap() {
     if (map || !window.L) return !!map;
     map = L.map('map', { zoomControl: true }).setView(PORT_CENTER, 13);
@@ -786,17 +897,20 @@ const APP_VERSION = '2026-10-02.5';
   }
   function setPin(latlng) {
     if (!companyId) return;
-    companyPins[companyId] = { lat: Number(latlng.lat.toFixed(6)), lng: Number(latlng.lng.toFixed(6)) };
+    companyPins[placeKey(companyId, currentLoc())] = { lat: Number(latlng.lat.toFixed(6)), lng: Number(latlng.lng.toFixed(6)) };
     save(KEY_CO_PIN, companyPins);
     renderCompanyPicker(); render();
   }
   function updateMap() {
     const sel = companyById(companyId);
-    const pin = companyPins[companyId];
+    const loc = currentLoc();
+    const key = placeKey(companyId, loc);
+    const pin = companyPins[key];
+    const where = locationOf(companyId, loc)?.name || sel?.name || '';
     if (!tilesFailed) $('mapHint').textContent = !sel ? ''
-      : pin ? `Sleep de spelt om de plaats van ${sel.name} te verbeteren.`
-      : `Tik op de kaart waar je moet zijn bij ${sel.name}. Daarna kun je de spelt verslepen.`;
-    $('pinRoute').href = routeUrl(companyId) || '#';
+      : pin ? `Sleep de spelt om de plaats van ${where} te verbeteren.`
+      : `Tik op de kaart waar je moet zijn (${where}). Daarna kun je de spelt verslepen.`;
+    $('pinRoute').href = routeUrl(companyId, loc) || '#';
     $('pinRoute').setAttribute('aria-disabled', String(!pin));
     $('pinClear').disabled = !pin;
     if (!$('mapBox').open || !ensureMap()) return;
@@ -811,22 +925,28 @@ const APP_VERSION = '2026-10-02.5';
         marker.on('dragend', () => setPin(marker.getLatLng()));
       } else marker.setLatLng([pin.lat, pin.lng]);
     } else if (marker) { marker.remove(); marker = null; }
-    // alleen opnieuw centreren als je van bedrijf wisselt
-    if (mapCompany !== companyId) {
+    // alleen opnieuw centreren als je van bedrijf of plaats wisselt
+    if (mapPlace !== key) {
       map.setView(pin ? [pin.lat, pin.lng] : PORT_CENTER, pin ? 17 : 13);
-      mapCompany = companyId;
+      mapPlace = key;
     }
   }
   $('mapBox').addEventListener('toggle', () => {
     if ($('mapBox').open && !window.L) $('mapHint').textContent = 'De kaart kon niet geladen worden. Ben je offline?';
-    mapCompany = null;
+    mapPlace = null;
     updateMap();
   });
   $('pinClear').addEventListener('click', () => {
-    if (!companyId || !confirm('Spelt voor dit bedrijf wissen?')) return;
-    delete companyPins[companyId];
+    if (!companyId || !confirm('Spelt voor deze plaats wissen?')) return;
+    delete companyPins[placeKey(companyId, currentLoc())];
     save(KEY_CO_PIN, companyPins);
     renderCompanyPicker(); render();
+  });
+
+  $('loc').addEventListener('change', () => {
+    lastLocation[companyId] = $('loc').value;
+    save(KEY_LAST_LOC, lastLocation);
+    renderCompanyPicker();
   });
 
   // --- formulier ----------------------------------------------------------
@@ -841,6 +961,7 @@ const APP_VERSION = '2026-10-02.5';
       date: $('date').value, code: $('code').value, kind: $('kind').value, tariff: $('tariff').value, work: $('work').value,
       wijziging: $('wijziging').checked,
       company: companyId, companyName: companyById(companyId)?.name || '', kaai: $('kaai').value.trim(),
+      loc: companyId ? currentLoc() : '', locName: (companyId && locationsOf(companyId).length > 1 && locationOf(companyId, currentLoc())?.name) || '',
       overtime: parseHours($('ot').value), note: $('note').value.trim(),
     };
   }
@@ -955,8 +1076,9 @@ const APP_VERSION = '2026-10-02.5';
         e.wijziging ? 'wijzigingsvergoeding' : '',
         `netto ± ${money(x.netto)}`,
         clothingLabel(e),
+        e.locName ? escapeHtml(e.locName) : '',
         e.kaai ? `kaai ${escapeHtml(e.kaai)}` : '',
-        routeLink(e.company),
+        e.company ? routeLink(e.company, e.loc) : '',
         e.note ? escapeHtml(e.note) : '',
       ].filter(Boolean).join(' · ');
       const co = e.company || e.companyName;
@@ -1262,7 +1384,7 @@ const APP_VERSION = '2026-10-02.5';
   }
   $('exportJson').addEventListener('click', () => {
     download(`werkuren-backup-${isoDate(new Date())}.json`,
-      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyAddresses, companyPins }, null, 2), 'application/json');
+      JSON.stringify({ entries, periods, settings, holidayOverrides, customCompanies, hiddenCompanies, purchases, clothingStart, companyLocations, companyPins, lastLocation }, null, 2), 'application/json');
   });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', async (ev) => {
@@ -1280,21 +1402,22 @@ const APP_VERSION = '2026-10-02.5';
       if (Array.isArray(data.hiddenCompanies)) hiddenCompanies = data.hiddenCompanies;
       if (Array.isArray(data.purchases)) purchases = data.purchases;
       if (data.clothingStart) clothingStart = data.clothingStart;
-      if (data.companyAddresses) companyAddresses = data.companyAddresses;
+      if (data.companyLocations) companyLocations = data.companyLocations;
+      if (data.lastLocation) lastLocation = data.lastLocation;
       if (data.companyPins) companyPins = data.companyPins;
       save(KEY_ENTRIES, entries); save(KEY_PERIODS, periods); save(KEY_SETTINGS, settings); save(KEY_HOLIDAYS, holidayOverrides);
       save(KEY_CUSTOM_CO, customCompanies); save(KEY_HIDDEN_CO, hiddenCompanies);
-      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_ADDR, companyAddresses); save(KEY_CO_PIN, companyPins);
+      save(KEY_PURCHASES, purchases); save(KEY_CLOTH_START, clothingStart); save(KEY_CO_LOCS, companyLocations); save(KEY_CO_PIN, companyPins); save(KEY_LAST_LOC, lastLocation);
       renderCompanyPicker(); renderSettings(); renderHolidays(); renderRates(); render();
     } catch { alert('Dit is geen geldig back-upbestand.'); }
     ev.target.value = '';
   });
   $('exportCsv').addEventListener('click', () => {
-    const rows = [['Datum', 'Bedrijf', 'Kaai', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
+    const rows = [['Datum', 'Bedrijf', 'Plaats', 'Kaai', 'Shift', 'Overuren', 'Bruto', 'Netto (schatting)', 'Notitie']];
     const num = (n) => String(round2(n)).replace('.', ',');
     for (const e of monthEntries(viewYear, viewMonth)) {
       const x = shiftOf(e);
-      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', e.kaai || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
+      rows.push([e.date, companyById(e.company)?.name || e.companyName || '', e.locName || '', e.kaai || '', entryTitle(e), num(overtimeOf(e)), num(x.bruto), num(x.netto), e.note]);
     }
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     download(`werkuren-${viewYear}-${pad(viewMonth + 1)}.csv`, '﻿' + csv, 'text/csv');
