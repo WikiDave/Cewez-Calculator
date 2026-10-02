@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f3d5e">
+<meta name="theme-color" content="#0f5c8c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Werkuren">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Haven Werkuren</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
@@ -88,6 +95,45 @@
   .locrow input[data-field="name"] { font-weight: 600; }
   .locrow .del { grid-column: 2; grid-row: 1 / span 2; }
   .linkbtn { border: 0; background: transparent; color: var(--accent); font-weight: 600; padding: 8px 0; cursor: pointer; }
+  header { display: flex; align-items: flex-start; gap: 12px; }
+  header > div:first-child { flex: 1; }
+  .hbtns { display: flex; flex-direction: column; gap: 6px; }
+  textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: inherit; font: inherit; resize: vertical;
+  }
+  .help {
+    flex: none; border: 1px solid var(--line); background: var(--card); color: var(--accent);
+    border-radius: 999px; padding: 8px 14px; min-height: 40px; font-weight: 600; cursor: pointer;
+  }
+  dialog.sheet {
+    width: min(520px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow: auto;
+    border: 0; border-radius: 16px; padding: 20px 18px 18px; background: var(--card); color: var(--text);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+  }
+  dialog.sheet::backdrop { background: rgba(10, 20, 30, .55); }
+  dialog.sheet h2 { font-size: 20px; margin: 0 40px 8px 0; }
+  dialog.sheet h3 { font-size: 16px; margin: 0 0 6px; }
+  dialog.sheet p, dialog.sheet li { font-size: 15px; }
+  dialog.sheet ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+  dialog.sheet section { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+  dialog.sheet section.mine { background: var(--accent-soft); border: 0; border-radius: 12px; padding: 12px; }
+  .qr { margin: 12px 0; text-align: center; }
+  /* QR-code altijd donker op wit, ook in donkere modus, anders scant hij slecht */
+  .qr img { width: 180px; height: 180px; max-width: 100%; background: #fff; padding: 6px; border-radius: 12px; border: 1px solid var(--line); }
+  .qr figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+  .sheet-x { position: absolute; top: 10px; right: 10px; margin: 0; }
+  .sheet-x button {
+    width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); color: var(--text);
+    font-size: 18px; cursor: pointer;
+  }
+  .disclaimer {
+    margin: 20px 0 8px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line);
+    font-size: 13px; line-height: 1.45; color: var(--muted); text-align: center;
+  }
+  .disclaimer p { margin: 0; }
+  .disclaimer p + p { margin-top: 8px; }
+  .disclaimer b, .disclaimer-text b { color: var(--text); }
   .li-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .del {
     border: 0; background: transparent; color: var(--danger); width: 36px; height: 36px;
@@ -208,9 +254,80 @@
 <body>
 <main>
   <header>
-    <h1>Haven Werkuren</h1>
-    <p class="sub">Shiften, overuren en netto per uitbetaling</p>
+    <div>
+      <h1>Haven Werkuren</h1>
+      <p class="sub">Shiften, overuren en netto per uitbetaling</p>
+    </div>
+    <div class="hbtns">
+      <button type="button" class="help" id="helpBtn">Uitleg</button>
+      <button type="button" class="help" id="bugBtn">Fout melden</button>
+    </div>
   </header>
+
+  <dialog class="sheet" id="bugDialog" aria-labelledby="bugTitle">
+    <form method="dialog" class="sheet-x"><button value="close" aria-label="Sluiten">✕</button></form>
+    <h2 id="bugTitle">Fout melden</h2>
+    <p>Beschrijf wat er misging. Je melding komt terecht bij de maker van de app, op GitHub.</p>
+    <label for="bugWhat">Wat ging er mis?</label>
+    <textarea id="bugWhat" rows="4" placeholder="bv. het netto van 15 september klopt niet met mijn loonbrief"></textarea>
+    <label for="bugExpect">Wat had je verwacht? (optioneel)</label>
+    <textarea id="bugExpect" rows="2" placeholder="bv. op mijn loonbrief staat € 239,84"></textarea>
+    <label class="check"><input type="checkbox" id="bugDay"> <span>Gekozen dag meesturen (<span id="bugDayName"></span>: shift, functie en bedragen, zonder notities)</span></label>
+    <p class="hint">De app-versie en het type toestel worden automatisch toegevoegd. Let op: meldingen zijn <b>openbaar</b> zichtbaar op GitHub. Je hebt een gratis GitHub-account nodig om ze te versturen.</p>
+    <button type="button" class="btn" id="bugSend">Melding maken op GitHub</button>
+    <button type="button" class="btn ghost" id="bugCopy">Tekst kopiëren</button>
+    <p class="hint" id="bugMsg" hidden></p>
+  </dialog>
+
+  <dialog class="sheet" id="welcome" aria-labelledby="welcomeTitle">
+    <form method="dialog" class="sheet-x"><button value="close" aria-label="Sluiten">✕</button></form>
+    <h2 id="welcomeTitle">Haven Werkuren als app</h2>
+    <p id="welcomeIntro">Zet de app op je beginscherm. Dan opent hij als een gewone app, zonder adresbalk, en werkt hij ook met slecht bereik op de kaai.</p>
+    <button type="button" class="btn" id="installBtn" hidden>App installeren</button>
+
+    <section class="howto" data-os="ios">
+      <h3>iPhone (Safari)</h3>
+      <ol>
+        <li>Tik onderaan op de <b>Deel-knop</b> (het vierkantje met een pijl omhoog).</li>
+        <li>Scroll naar beneden en kies <b>Zet op beginscherm</b>.</li>
+        <li>Tik rechtsboven op <b>Voeg toe</b>.</li>
+      </ol>
+      <p class="hint">Dit lukt alleen in Safari. Gebruik je een andere browser, open de link dan eerst in Safari.</p>
+    </section>
+
+    <section class="howto" data-os="android">
+      <h3>Android (Chrome)</h3>
+      <ol>
+        <li>Tik rechtsboven op <b>⋮</b> (drie puntjes).</li>
+        <li>Kies <b>App installeren</b> of <b>Toevoegen aan startscherm</b>.</li>
+        <li>Bevestig met <b>Installeren</b>.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h3>Delen met een collega</h3>
+      <p>Laat je collega deze code scannen met de camera van de gsm, of stuur de link door. Iedereen krijgt zijn eigen, lege app: jouw uren en je loon blijven op jouw gsm.</p>
+      <figure class="qr">
+        <img src="icons/qr-app.png" alt="QR-code met de link naar Haven Werkuren" width="180" height="180">
+        <figcaption>wikidave.github.io/Cewez-Calculator</figcaption>
+      </figure>
+      <button type="button" class="btn ghost" id="shareBtn">Link delen</button>
+      <p class="hint" id="shareMsg" hidden></p>
+    </section>
+
+    <section>
+      <h3>Opslaan</h3>
+      <p>Alles wat je invult, wordt meteen op dit toestel bewaard. Maak af en toe een back-up via <b>Back-up &amp; export</b>, zeker voor je van gsm wisselt.</p>
+    </section>
+
+    <section>
+      <h3>Over deze app</h3>
+      <p class="disclaimer-text">Dit is een <b>hobbyproject</b> van een havenarbeider, <b>David Schütt</b>, gebouwd met behulp van AI (Claude). Het heeft <b>niets te maken met Cewez</b>. De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief.</p>
+      <p class="hint">De app werkt offline op je gsm: je uren, je loon en al je gegevens blijven op je toestel en worden nergens gedeeld. Er wordt alleen geteld hoe vaak de link gedeeld wordt en op hoeveel toestellen de app geopend is, zonder namen of gegevens.</p>
+    </section>
+
+    <form method="dialog"><button class="btn" value="ok">Begrepen</button></form>
+  </dialog>
 
   <section class="card">
     <div class="monthbar">
@@ -482,14 +599,18 @@
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </details>
   </section>
+  <footer class="disclaimer">
+    <p>Dit is een <b>hobbyproject</b> van een havenarbeider, <b>David Schütt</b>, gebouwd met behulp van AI (Claude). Het heeft <b>niets te maken met Cewez</b>. De bedragen en informatie kunnen fout zijn: controleer altijd je loonbrief.</p>
+    <p>De app werkt offline op je gsm: je uren, je loon en al je gegevens blijven op je toestel en worden nergens gedeeld. Er wordt alleen geteld hoe vaak de link gedeeld wordt en op hoeveel toestellen de app geopend is, zonder namen of gegevens.</p>
+  </footer>
 </main>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="loon.js?v=2026-10-02.8"></script>
+<script src="loon.js?v=2026-10-02.15"></script>
 <script>
 // Versie van de app. Bij elke wijziging ophogen, samen met version.json en de ?v= van loon.js
 // (een test controleert dat ze gelijk zijn).
-const APP_VERSION = '2026-10-02.8';
+const APP_VERSION = '2026-10-02.15';
 (() => {
   // Nieuwere versie online? Dan opnieuw laden zonder de bewaarde (oude) kopie.
   // version.json wordt nooit uit de cache gehaald; de ?v= in de link omzeilt de oude pagina.
@@ -589,6 +710,7 @@ const APP_VERSION = '2026-10-02.8';
   const KEY_MODE = 'haven-werkuren.showMode';
   const KEY_LAST_WORK = 'haven-werkuren.lastWork';
   const KEY_LAST_FUNC = 'haven-werkuren.lastFunction';
+  const KEY_COUNTED = 'haven-werkuren.deviceCounted';
   const KEY_PURCHASES = 'haven-werkuren.clothingPurchases';
   const KEY_CLOTH_START = 'haven-werkuren.clothingStart';
   const KEY_FOLDS = 'haven-werkuren.folds';
@@ -1271,6 +1393,126 @@ const APP_VERSION = '2026-10-02.8';
     renderClothing();
   });
 
+  // --- uitleg: als app installeren, delen, opslaan -------------------------
+  const APP_URL = location.origin + location.pathname;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const os = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios'
+    : /android/i.test(navigator.userAgent) ? 'android' : '';
+  let installPrompt = null;
+  function openWelcome() {
+    // jouw toestel eerst en gemarkeerd; geïnstalleerd: geen installatie-uitleg meer nodig
+    const howtos = [...document.querySelectorAll('#welcome .howto')];
+    for (const h of howtos) { h.hidden = standalone; h.classList.toggle('mine', h.dataset.os === os); }
+    const mine = howtos.find((h) => h.dataset.os === os);
+    if (mine) mine.parentNode.insertBefore(mine, howtos[0]);
+    $('welcomeIntro').textContent = standalone
+      ? 'Je gebruikt de app al vanaf je beginscherm. Hieronder lees je hoe je hem deelt en hoe je gegevens bewaard worden.'
+      : 'Zet de app op je beginscherm. Dan opent hij als een gewone app, zonder adresbalk, en werkt hij ook met slecht bereik op de kaai.';
+    $('installBtn').hidden = standalone || !installPrompt;
+    $('shareMsg').hidden = true;
+    if (typeof $('welcome').showModal === 'function') $('welcome').showModal();
+    else $('welcome').setAttribute('open', '');
+  }
+  $('helpBtn').addEventListener('click', openWelcome);
+  // klikken naast het venster sluit het ook
+  $('welcome').addEventListener('click', (ev) => { if (ev.target === $('welcome')) $('welcome').close(); });
+  // Android/Chrome: eigen installatieknop
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    installPrompt = ev;
+    if ($('welcome').open) $('installBtn').hidden = false;
+  });
+  $('installBtn').addEventListener('click', async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => {});
+    installPrompt = null;
+    $('installBtn').hidden = true;
+  });
+  $('shareBtn').addEventListener('click', async () => {
+    const msg = (t) => { $('shareMsg').textContent = t; $('shareMsg').hidden = false; };
+    const data = { title: 'Haven Werkuren', text: 'Hou je shiften, overuren en netto bij met Haven Werkuren:', url: APP_URL };
+    try {
+      if (navigator.share) { await navigator.share(data); countShare(); return; }
+      await navigator.clipboard.writeText(APP_URL);
+      countShare();
+      msg('Link gekopieerd. Plak hem in een bericht naar je collega.');
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // delen geannuleerd
+      msg(`Kopieer deze link: ${APP_URL}`);
+    }
+  });
+
+  // --- anoniem tellen op hoeveel toestellen de app gebruikt wordt -----------
+  // Elk toestel stuurt één keer "+1" naar een teller (Abacus); er gaat niets mee over de gebruiker.
+  // Het aantal staat niet in de app, enkel als badge in de README op GitHub.
+  // Enkel op de echte website, niet tijdens het testen.
+  const COUNTER_URL = 'https://abacus.jasoncameron.dev';
+  const COUNTER_KEY = 'cewez-calculator/toestellen';
+  const SHARE_KEY = 'cewez-calculator/gedeeld';
+  const countingSite = location.hostname === 'wikidave.github.io';
+  // elke keer dat iemand de link deelt of kopieert via de knop "Link delen"
+  function countShare() {
+    if (countingSite) fetch(`${COUNTER_URL}/hit/${SHARE_KEY}`).catch(() => {});
+  }
+  async function countDevice() {
+    if (!countingSite || load(KEY_COUNTED, false)) return;
+    try {
+      const res = await fetch(`${COUNTER_URL}/hit/${COUNTER_KEY}`);
+      if (!res.ok) return;
+      save(KEY_COUNTED, true);
+    } catch { /* offline: volgende keer opnieuw proberen */ }
+  }
+
+  // --- fout melden (GitHub-issue) --------------------------------------------
+  const ISSUE_URL = 'https://github.com/WikiDave/Cewez-Calculator/issues/new';
+  function bugReport() {
+    const what = $('bugWhat').value.trim();
+    const expect = $('bugExpect').value.trim();
+    const lines = ['**Wat ging er mis?**', what || '(niet ingevuld)', ''];
+    if (expect) lines.push('**Wat had ik verwacht?**', expect, '');
+    if ($('bugDay').checked) {
+      const list = dayEntries(selected);
+      lines.push(`**Dag ${selected}**`);
+      if (!list.length) lines.push('- geen shiften');
+      for (const e of list) {
+        const x = shiftOf(e);
+        lines.push(`- ${entryTitle(e)}; ${{ full: 'volle shift', half: 'halve shift', afbestel: 'afbestelling' }[e.kind] || e.kind}; overuren: ${fmtHours(overtimeOf(e))}; bruto ${money(x.bruto)}; netto ± ${money(x.netto)}`);
+      }
+      lines.push('');
+    }
+    lines.push('---', `App-versie: ${APP_VERSION} · Als app: ${standalone ? 'ja' : 'nee'} · Scherm: ${screen.width}×${screen.height}`, `Toestel: ${navigator.userAgent}`);
+    const title = 'Fout: ' + (what.split('\n')[0].slice(0, 70) || 'zonder omschrijving');
+    return { title, body: lines.join('\n').slice(0, 6000) };
+  }
+  const bugMsg = (t) => { $('bugMsg').textContent = t; $('bugMsg').hidden = !t; };
+  $('bugBtn').addEventListener('click', () => {
+    $('bugDayName').textContent = fmtDate(selected, { day: 'numeric', month: 'long' });
+    bugMsg('');
+    if (typeof $('bugDialog').showModal === 'function') $('bugDialog').showModal();
+    else $('bugDialog').setAttribute('open', '');
+  });
+  $('bugDialog').addEventListener('click', (ev) => { if (ev.target === $('bugDialog')) $('bugDialog').close(); });
+  $('bugSend').addEventListener('click', () => {
+    if (!$('bugWhat').value.trim()) { bugMsg('Beschrijf eerst kort wat er misging.'); $('bugWhat').focus(); return; }
+    const { title, body } = bugReport();
+    const url = `${ISSUE_URL}?labels=bug&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    window.open(url, '_blank', 'noopener');
+    bugMsg('GitHub is geopend in een nieuw venster. Meld je aan en tik op "Submit new issue" om te versturen.');
+  });
+  $('bugCopy').addEventListener('click', async () => {
+    const { title, body } = bugReport();
+    try {
+      await navigator.clipboard.writeText(`${title}\n\n${body}`);
+      bugMsg('Tekst gekopieerd. Je kunt hem plakken in een bericht of e-mail.');
+    } catch { bugMsg('Kopiëren lukte niet op dit toestel.'); }
+  });
+
+  // offline werken (enkel op een echte website, niet als los bestand)
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
   // --- netto-instellingen -------------------------------------------------
   $('sPlace').innerHTML = Loon.PLACES.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)} (${money(Loon.TRAVEL[Loon.TRAVEL.length - 1].table[p])})</option>`).join('');
   const settingInputs = [...document.querySelectorAll('[data-s]')];
@@ -1479,6 +1721,9 @@ const APP_VERSION = '2026-10-02.8';
   renderHolidays();
   renderRates();
   selectDay(isoDate(today), false);
+  countDevice();
+  // uitleg bij elke start van de app
+  openWelcome();
 })();
 </script>
 </body>
