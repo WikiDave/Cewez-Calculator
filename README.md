@@ -2,7 +2,7 @@
 
 Werkuren en loon bijhouden voor havenarbeid in Zeebrugge: kies per dag het bedrijf en het startuur, vul eventuele overuren in (na 7u45) en zie per maand het bruto en het geschatte netto per uitbetaling.
 
-- Open `index.html` in de browser (of via GitHub Pages).
+- Open de app via GitHub Pages en zet hem op je beginscherm (de knop "Uitleg" legt uit hoe). Hij werkt ook offline (service worker in `sw.js`, manifest in `manifest.webmanifest`).
 - Gegevens blijven op je toestel (browseropslag); maak af en toe een back-up via "Back-up & export".
 
 ## Loonberekening
